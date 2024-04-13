@@ -59,6 +59,17 @@ def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndar
             proj[Y, X, :] = image[y, x, :]
     return proj
 
+def rotate_image(image:np.ndarray[np.uint8,3], angle:float, center:tuple[int,int]=None):
+    H, W, *_ = image.shape
+    if center == None:
+        center = (W / 2, H / 2)
+    M = cv2.getRotationMatrix2D(center, angle, 1)
+    return cv2.warpAffine(image, M, (W, H))
+
+def normalize(image:np.ndarray[np.uint8,3]):
+    return cv2.normalize(image, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    # return (image - image.mean()) / image.std()
+
 if __name__ == '__main__':
     imgs, focals = read_images("data\parrington\list.txt")
     proj = cylindrical_projection(imgs[0], focals[0])
