@@ -59,7 +59,7 @@ def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndar
             proj[Y, X, :] = image[y, x, :]
     return proj
 
-def rotate_image(image:np.ndarray[np.uint8,3], angle:float, center:tuple[int,int]=None):
+def rotate_image(image:np.ndarray[np.uint8,3], angle:float, center:tuple[float,float]=None):
     H, W, *_ = image.shape
     if center == None:
         center = (W / 2, H / 2)
@@ -69,6 +69,22 @@ def rotate_image(image:np.ndarray[np.uint8,3], angle:float, center:tuple[int,int
 def normalize(image:np.ndarray[np.uint8,3]):
     return cv2.normalize(image, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     # return (image - image.mean()) / image.std()
+
+def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]], angles:list[float], filename:str):
+    assert(len(keypoints) == len(angles))
+    image = image.copy()
+
+    arrow_length = 10
+    for i in range(len(keypoints)):
+        y, x = keypoints[i]
+        cv2.circle(image, (int(x), int(y)), 1, (0, 255, 0), -1)
+
+        angle = angles[i]
+        end_x = int(x + arrow_length * np.cos(angle * np.pi / 180))
+        end_y = int(y - arrow_length * np.sin(angle * np.pi / 180))
+        cv2.arrowedLine(image, (int(x), int(y)), (end_x, end_y), (0, 0, 255), 1)
+
+    cv2.imwrite(f"{filename}.jpg", image)
 
 if __name__ == '__main__':
     imgs, focals = read_images("data\parrington\list.txt")

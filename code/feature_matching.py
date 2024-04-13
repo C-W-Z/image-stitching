@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
 import utils
+from Harris_by_ShuoEn import *
 
-def feature_descriptor(image:np.ndarray[np.uint8, 3], featurePoints:list[tuple[int, int]], bins:int=36):
+def feature_descriptor(image:np.ndarray[np.uint8, 3], keypoints:list[tuple[int, int]], bins:int=36, save_filename=None):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # gray image
     I = cv2.GaussianBlur(gray, (5,5), sigmaX=4.5, sigmaY=4.5)
     Iy, Ix = np.gradient(I)
@@ -10,11 +11,13 @@ def feature_descriptor(image:np.ndarray[np.uint8, 3], featurePoints:list[tuple[i
     theta = np.mod(theta, 360)
 
     descriptors = []
+    validpoints = []
+    orientations = []
 
-    patch_size = 8
+    patch_size = 16
     H, W, *_ = image.shape
     print(H, W)
-    for y, x in featurePoints:
+    for y, x in keypoints:
         half_patch_size = patch_size // 2
         if x - half_patch_size < 0 or x + half_patch_size >= W:
             continue
@@ -25,6 +28,7 @@ def feature_descriptor(image:np.ndarray[np.uint8, 3], featurePoints:list[tuple[i
         x_max = x + half_patch_size
         y_min = y - half_patch_size
         y_max = y + half_patch_size
+        print("keypoint:", y, x)
         print(y_min, y_max, x_min, x_max)
 
         patch = theta[y_min:y_max, x_min:x_max]
@@ -38,21 +42,30 @@ def feature_descriptor(image:np.ndarray[np.uint8, 3], featurePoints:list[tuple[i
         major_bin = np.argmax(histogram)
         major_orientation = (major_bin + 0.5) * binSize
         print("major orientation=", major_orientation)
+        orientations.append(major_orientation)
 
         # sub-pixel refinement ?
 
-        rotated = utils.rotate_image(gray, major_orientation, (x, y))
+        rotated = utils.rotate_image(gray, major_orientation, (float(x), float(y)))
         oriented_patch = rotated[y_min:y_max, x_min:x_max]
-        print(oriented_patch)
+        # print(oriented_patch)
         oriented_patch = utils.normalize(oriented_patch)
 
         descriptors.append(((y, x), oriented_patch))
+        
+        validpoints.append((y, x))
+
+    if save_filename != None:
+        utils.draw_keypoints(image, validpoints, orientations, save_filename)
 
     return descriptors
 
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
-    proj = utils.cylindrical_projection(imgs[0], focals[0])
     H, W, _ = imgs[0].shape
-    desc = feature_descriptor(proj, [(H//2, W//2)])
-    print(desc)
+    projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
+    keyPoints = [harris_detector(img) for img in imgs]
+    for i in range(len(imgs)):
+        desc = feature_descriptor(projs[i], keyPoints[i], save_filename=f"test{i}")
+        # print(desc)
+
