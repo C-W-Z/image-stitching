@@ -44,11 +44,25 @@ def harris_detector(image, k=0.04, thresRatio=0.01):
     # point[:,[0, 1]] = point[:,[1, 0]]  # (y, x) => (x, y)
     return point
 
+def plot_points(Point):
+    img = cv2.imread("..\data\parrington\prtn00.jpg", cv2.IMREAD_COLOR)
+    for x,y in Point:
+        img[x,y,0]=0
+        img[x,y,1]=0
+        img[x,y,2]=255
+    cv2.imshow('image',img)
+    cv2.waitKey(0)
+    return
+
 if __name__ == '__main__':
     images, focals = read_images("..\data\parrington\list.txt")
     img1 = images[0]
-    img2 = images[1]
+    #img2 = images[1]
     keyPoints1 = harris_detector(img1)
-    keyPoints2 = harris_detector(img2)
-    print(keyPoints1)
-    print(keyPoints2)
+    #keyPoints2 = harris_detector(img2)
+    """for x,y in keyPoints1:
+        print(x, y)"""
+    #print(keyPoints1)
+    #print(keyPoints2)
+    plot_points(keyPoints1)
+    #plot_points(keyPoints2)
