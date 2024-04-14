@@ -50,68 +50,60 @@ def stitch(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], of
     HL, WL = img_left.shape[:2]
     HR, WR = img_right.shape[:2]
 
-    new_H = max(HL, HR + int(np.ceil(abs(dy))))
     new_W = max(WL, WR + int(np.ceil(dx)))
 
-    M = np.float32([[1, 0, dx],
-                    [0, 1, dy]])
-
-    overlap_x = int(np.floor(dx))
-    overlap_W = WL - overlap_x
-    mask = np.where(img_left[:, :, 3] > 127) # alpha > 127
-    # mask = np.where(img_left != [0,0,0])
-    # print(mask)
-
-    combined = np.zeros((new_H, new_W, 4), dtype=np.uint8)
-
     if dy >= 0:
+        new_H = max(HL, HR + int(np.ceil(abs(dy))))
+
+        M = np.float32([[1, 0, dx],
+                        [0, 1, dy]])
         warped_right = cv2.warpAffine(img_right, M, (new_W, new_H))
+        combined = np.zeros((new_H, new_W, 4), dtype=np.uint8)
+        mask = np.where(img_left[:, :, 3] > 127) # alpha > 127
         combined[mask] = img_left[mask]
-        # # blending
-        # for x in range(overlap_x, WL):
-        #     for y in range(new_H):
-        #         if warped_right[y, x, 3] < 128:
-        #             continue
-        #         if combined_image[y, x, 3] > 127:
-        #             for i in range(3):
-        #                 mix = combined_image[y, x, i] * (WL - x) / overlap_W
-        #                 mix += warped_right[y, x, i] * (x - overlap_x) / overlap_W
-        #                 combined_image[y, x, i] = mix
-        #             combined_image[y, x, 3] = 255
-        #         else:
-        #             combined_image[y, x] = warped_right[y, x]
-        # combined_image[:,WL:] = warped_right[:,WL:]
 
-        overlap_weights = np.linspace(0, 1, WL - overlap_x)
-        expanded_weights = np.tile(overlap_weights.reshape(1, -1, 1), (new_H, 1, 4))
+    else:
+        new_H = max(HL, HR) + int(np.ceil(abs(dy)))
 
-        right_single = np.where(
-            np.logical_and(
-                combined[:, overlap_x:WL, 3] < 128,
-                warped_right[:, overlap_x:WL, 3] > 127
-            )
+        M = np.float32([[1, 0, dx],
+                        [0, 1,  0]])
+        warped_right = cv2.warpAffine(img_right, M, (new_W, new_H))
+        M = np.float32([[1, 0,  0],
+                        [0, 1, -dy]])
+        combined = cv2.warpAffine(img_left, M, (new_W, new_H))
+
+    warped_right[warped_right[:, :, 3] < 225] = 0
+    combined[combined[:, :, 3] < 225] = 0
+
+    # Blending
+    overlap_x = int(np.floor(dx))
+
+    right_notlap = np.where(
+        np.logical_and(
+            combined[:, overlap_x:WL, 3] < 128,
+            warped_right[:, overlap_x:WL, 3] > 127
         )
-        true_overlap = np.where(
-            np.logical_and(
-                combined[:, overlap_x:WL, 3] > 127,
-                warped_right[:, overlap_x:WL, 3] > 127
-            )
+    )
+
+    true_overlap = np.where(
+        np.logical_and(
+            combined[:, overlap_x:WL, 3] > 127,
+            warped_right[:, overlap_x:WL, 3] > 127
         )
-        combined[true_overlap[0], true_overlap[1] + overlap_x] = (
-            combined[true_overlap[0], true_overlap[1] + overlap_x] * (1 - expanded_weights[true_overlap]) + 
-            warped_right[true_overlap[0], true_overlap[1] + overlap_x] * expanded_weights[true_overlap]
-        )
-        combined[right_single[0], right_single[1] + overlap_x] = warped_right[right_single[0], right_single[1] + overlap_x]
+    )
 
-        combined[:, WL:] = warped_right[:, WL:]
+    overlap_weights = np.linspace(0, 1, WL - overlap_x)
+    expanded_weights = np.tile(overlap_weights.reshape(1, -1, 1), (new_H, 1, 4))
 
-    # else:
-    #     combined[-dy:-dy+HR, :WR] = img_right
-    #     combined = cv2.warpAffine(combined, M, (new_W, new_H))
-    #     translated_mask = (mask[0] - dy, mask[1])
-    #     combined[translated_mask] = img_left[mask]
+    combined[true_overlap[0], true_overlap[1] + overlap_x] = (
+        combined[true_overlap[0], true_overlap[1] + overlap_x] * (1 - expanded_weights[true_overlap]) + 
+        warped_right[true_overlap[0], true_overlap[1] + overlap_x] * expanded_weights[true_overlap]
+    )
 
-    # cv2.imwrite("test_stitch.jpg", combined_image)
+    combined[right_notlap[0], right_notlap[1] + overlap_x] = warped_right[right_notlap[0], right_notlap[1] + overlap_x]
+
+    combined[:, WL:] = warped_right[:, WL:]
+
     return combined
 
 def stitch_all(images, offsets):
@@ -168,8 +160,6 @@ if __name__ == '__main__':
     s = projs[0]
     oy, ox = 0, 0
     for i, offset in enumerate(offsets):
-        if i > 0:
-            break
         oy += offsets[i][0]
         ox += offsets[i][1]
         s = stitch(s, projs[i+1], (oy, ox))
