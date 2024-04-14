@@ -47,7 +47,7 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
 
 def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndarray[np.uint8, 3]:
     H, W, *_ = image.shape
-    proj = np.zeros(image.shape, dtype=np.uint8)
+    proj = np.zeros((H, W, 4), dtype=np.uint8) # add alpha channel
     y_coords, x_coords = np.ogrid[:H, :W]
     _y = y_coords - H // 2
     _x = x_coords - W // 2
@@ -57,8 +57,12 @@ def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndar
     Y = H // 2 + (focal * h).astype(int)
     # X = np.clip(X, 0, W - 1)
     # Y = np.clip(Y, 0, H - 1)
-    proj[Y, X, :] = image[y_coords, x_coords, :]
-    return proj
+    proj[Y, X, :3] = image[y_coords, x_coords, :]
+    proj[Y, X, 3] = 255 # alpha = 255
+    non_zero_cols = np.where(proj[:, :, 3].sum(axis=0) > 0)[0]
+    left, right = non_zero_cols[0], non_zero_cols[-1]
+    cropped = proj[:, left:right+1]
+    return cropped
 
 def rotate_image(image:np.ndarray[np.uint8,3], angle:float, center:tuple[float,float]=None):
     H, W, *_ = image.shape

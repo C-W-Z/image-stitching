@@ -37,11 +37,11 @@ def ransac(offsets:np.ndarray[float,3], threshold:float, iterations:int=1000):
 
     return (totalY / count, totalX / count)
 
-def stitch(img_left:np.ndarray[float,3], img_right:np.ndarray[float,3], offset:tuple[float,float]):
+def stitch(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:tuple[float,float]):
     """
     Parameters
-    img_left: the image should be stitch on the left
-    img_right: the image should be stitch on the right
+    img_left: the image should be stitch on the left (4 channels BGRA)
+    img_right: the image should be stitch on the right (4 channels BGRA)
     offset: (dy, dx), the top-left corner of img_right will be stitched at (dy, dx), dx must >= 0
     """
 
@@ -56,22 +56,63 @@ def stitch(img_left:np.ndarray[float,3], img_right:np.ndarray[float,3], offset:t
     M = np.float32([[1, 0, dx],
                     [0, 1, dy]])
 
-    overlap_W = WL - dx
-    mask = np.where(img_left != [0, 0, 0])
+    overlap_x = int(np.floor(dx))
+    overlap_W = WL - overlap_x
+    mask = np.where(img_left[:, :, 3] > 127) # alpha > 127
+    # mask = np.where(img_left != [0,0,0])
     # print(mask)
 
-    if dy >= 0:
-        combined_image = cv2.warpAffine(img_right, M, (new_W, new_H))
-        combined_image[mask] = img_left[mask]
-    else:
-        combined_image = np.zeros((new_H, new_W, 3), dtype=np.uint8)
-        combined_image[-dy:-dy+HR, :WR] = img_right
-        combined_image = cv2.warpAffine(combined_image, M, (new_W, new_H))
-        translated_mask = (mask[0] - dy, mask[1], mask[2])
-        combined_image[translated_mask] = img_left[mask]
+    combined = np.zeros((new_H, new_W, 4), dtype=np.uint8)
 
-    cv2.imwrite("test_stitch.jpg", combined_image)
-    return combined_image
+    if dy >= 0:
+        warped_right = cv2.warpAffine(img_right, M, (new_W, new_H))
+        combined[mask] = img_left[mask]
+        # # blending
+        # for x in range(overlap_x, WL):
+        #     for y in range(new_H):
+        #         if warped_right[y, x, 3] < 128:
+        #             continue
+        #         if combined_image[y, x, 3] > 127:
+        #             for i in range(3):
+        #                 mix = combined_image[y, x, i] * (WL - x) / overlap_W
+        #                 mix += warped_right[y, x, i] * (x - overlap_x) / overlap_W
+        #                 combined_image[y, x, i] = mix
+        #             combined_image[y, x, 3] = 255
+        #         else:
+        #             combined_image[y, x] = warped_right[y, x]
+        # combined_image[:,WL:] = warped_right[:,WL:]
+
+        overlap_weights = np.linspace(0, 1, WL - overlap_x)
+        expanded_weights = np.tile(overlap_weights.reshape(1, -1, 1), (new_H, 1, 4))
+
+        right_single = np.where(
+            np.logical_and(
+                combined[:, overlap_x:WL, 3] < 128,
+                warped_right[:, overlap_x:WL, 3] > 127
+            )
+        )
+        true_overlap = np.where(
+            np.logical_and(
+                combined[:, overlap_x:WL, 3] > 127,
+                warped_right[:, overlap_x:WL, 3] > 127
+            )
+        )
+        combined[true_overlap[0], true_overlap[1] + overlap_x] = (
+            combined[true_overlap[0], true_overlap[1] + overlap_x] * (1 - expanded_weights[true_overlap]) + 
+            warped_right[true_overlap[0], true_overlap[1] + overlap_x] * expanded_weights[true_overlap]
+        )
+        combined[right_single[0], right_single[1] + overlap_x] = warped_right[right_single[0], right_single[1] + overlap_x]
+
+        combined[:, WL:] = warped_right[:, WL:]
+
+    # else:
+    #     combined[-dy:-dy+HR, :WR] = img_right
+    #     combined = cv2.warpAffine(combined, M, (new_W, new_H))
+    #     translated_mask = (mask[0] - dy, mask[1])
+    #     combined[translated_mask] = img_left[mask]
+
+    # cv2.imwrite("test_stitch.jpg", combined_image)
+    return combined
 
 def stitch_all(images, offsets):
     N = len(images)
@@ -94,7 +135,8 @@ if __name__ == '__main__':
     # points = []
     # orientations = []
     # for i in range(N):
-    #     p, d, o = feature_descriptor(projs[i], keypoints[i])
+    #     gray = cv2.cvtColor(projs[i], cv2.COLOR_BGR2GRAY)
+    #     p, d, o = feature_descriptor(gray, keypoints[i])
     #     points.append(p)
     #     descs.append(d)
     #     orientations.append(o)
@@ -126,7 +168,10 @@ if __name__ == '__main__':
     s = projs[0]
     oy, ox = 0, 0
     for i, offset in enumerate(offsets):
+        if i > 0:
+            break
         oy += offsets[i][0]
         ox += offsets[i][1]
         s = stitch(s, projs[i+1], (oy, ox))
-
+    # print(s)
+    cv2.imwrite("test_stitch.png", s)

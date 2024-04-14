@@ -49,9 +49,7 @@ def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=
 
     return (histogram, major_orientation)
 
-def feature_descriptor(image:np.ndarray[np.uint8, 3], keypoints:list[tuple[int, int]]):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
+def feature_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]]):
     subpixel_keypoints = subpixel_refinement(gray, keypoints)
 
     descriptors = []
@@ -130,7 +128,8 @@ if __name__ == '__main__':
     points = []
     orientations = []
     for i in range(len(imgs)):
-        p, d, o = feature_descriptor(projs[i], keypoints[i])
+        gray = cv2.cvtColor(projs[i], cv2.COLOR_BGR2GRAY)
+        p, d, o = feature_descriptor(gray, keypoints[i])
         points.append(p)
         descs.append(d)
         orientations.append(o)
