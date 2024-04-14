@@ -1,0 +1,16 @@
+# image       focal
+denny00.jpg 653.514
+denny01.jpg 656.437
+denny02.jpg 659.745
+denny03.jpg 664.648
+denny04.jpg 669.26
+denny05.jpg 668.457
+denny06.jpg 647.072
+denny07.jpg 648.565
+denny08.jpg 648.189
+denny09.jpg 652.151
+denny10.jpg 650.807
+denny11.jpg 646.393
+denny12.jpg 647.819
+denny13.jpg 649.393
+denny14.jpg 654.062
