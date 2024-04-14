@@ -47,9 +47,7 @@ def harris_detector(image, k=0.04, thresRatio=0.01):
 def plot_points(Point):
     img = cv2.imread("..\data\parrington\prtn00.jpg", cv2.IMREAD_COLOR)
     for x,y in Point:
-        img[x,y,0]=0
-        img[x,y,1]=0
-        img[x,y,2]=255
+        img[x,y,0],img[x,y,1],img[x,y,2]= 0 , 0 ,255
     cv2.imshow('image',img)
     cv2.waitKey(0)
     return
