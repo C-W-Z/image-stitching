@@ -46,17 +46,18 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
         perror(f"FileNotFoundError: {e}")
 
 def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndarray[np.uint8, 3]:
-    H, W, _ = image.shape
+    H, W, *_ = image.shape
     proj = np.zeros(image.shape, dtype=np.uint8)
-    for y in range(H):
-        for x in range(W):
-            _y = y - int(H / 2)
-            _x = x - int(W / 2)
-            theta = np.arctan(_x / focal)
-            h = _y / np.sqrt(_x ** 2 + focal ** 2)
-            X = int(W / 2) + int(focal * theta)
-            Y = int(H / 2) + int(focal * h)
-            proj[Y, X, :] = image[y, x, :]
+    y_coords, x_coords = np.ogrid[:H, :W]
+    _y = y_coords - H // 2
+    _x = x_coords - W // 2
+    theta = np.arctan(_x / focal)
+    h = _y / np.sqrt(_x ** 2 + focal ** 2)
+    X = W // 2 + (focal * theta).astype(int)
+    Y = H // 2 + (focal * h).astype(int)
+    # X = np.clip(X, 0, W - 1)
+    # Y = np.clip(Y, 0, H - 1)
+    proj[Y, X, :] = image[y_coords, x_coords, :]
     return proj
 
 def rotate_image(image:np.ndarray[np.uint8,3], angle:float, center:tuple[float,float]=None):
@@ -77,11 +78,10 @@ def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]],
     arrow_length = 10
     for i in range(len(keypoints)):
         y, x = keypoints[i]
-        cv2.circle(image, (int(x), int(y)), 1, (0, 255, 0), -1)
+        cv2.circle(image, (int(x), int(y)), 1, (255, 0, 0), -1)
 
-        angle = angles[i]
-        end_x = int(x + arrow_length * np.cos(angle * np.pi / 180))
-        end_y = int(y - arrow_length * np.sin(angle * np.pi / 180))
+        end_x = int(x + arrow_length * np.cos(angles[i] * np.pi / 180))
+        end_y = int(y - arrow_length * np.sin(angles[i] * np.pi / 180))
         cv2.arrowedLine(image, (int(x), int(y)), (end_x, end_y), (0, 0, 255), 1)
 
     cv2.imwrite(f"{filename}.jpg", image)

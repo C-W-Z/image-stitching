@@ -1,71 +1,142 @@
 import cv2
 import numpy as np
+from scipy.spatial import cKDTree
 import utils
 from Harris_by_ShuoEn import *
 
-def feature_descriptor(image:np.ndarray[np.uint8, 3], keypoints:list[tuple[int, int]], bins:int=36, save_filename=None):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # gray image
-    I = cv2.GaussianBlur(gray, (5,5), sigmaX=4.5, sigmaY=4.5)
+def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma:float=0):
+    H, W = gray.shape
+
+    newH = H // spacing
+    newW = W // spacing
+
+    result = np.zeros((newH, newW), dtype=np.uint8)
+    blurred = cv2.GaussianBlur(gray, (spacing, spacing), sigmaX=sigma, sigmaY=sigma)
+
+    for i in range(newH):
+        for j in range(newW):
+            row_start = i * spacing
+            row_end = row_start + spacing
+            col_start = j * spacing
+            col_end = col_start + spacing
+            # blurred = cv2.GaussianBlur(gray[row_start:row_end, col_start:col_end], (spacing, spacing), sigmaX=sigma, sigmaY=sigma)
+            average = np.mean(blurred[row_start:row_end, col_start:col_end], axis=(0, 1))
+            result[i, j] = average.astype(np.uint8)
+
+    return result
+
+def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=0):
+    H, W = patch.shape
+    assert(H == W)
+    patch_size = W - 2 * margin
+    # calculate orientations in 12x12 and use 8x8
+    ksize = patch_size if patch_size % 2 == 1 else patch_size + 1
+    I = cv2.GaussianBlur(patch, (ksize, ksize), sigmaX=4.5, sigmaY=4.5)
     Iy, Ix = np.gradient(I)
-    theta = np.arctan2(Iy, Ix) * 180 / np.pi
-    theta = np.mod(theta, 360)
+    ori = np.mod(np.arctan2(Iy, Ix) * 180 / np.pi, 360)
+    ori = ori[margin:margin+patch_size, margin:margin+patch_size]
+
+    # compute major orientation in 8x8 patch
+    binSize = 360 / bins
+    histogram = np.zeros(bins)
+    for b in range(bins):
+        histogram[b] = np.sum((ori >= b * binSize) & (ori < (b + 1) * binSize))
+    major_bin = np.argmax(histogram)
+    major_orientation = (major_bin + 0.5) * binSize
+
+    return (histogram, major_orientation)
+
+def feature_descriptor(image:np.ndarray[np.uint8, 3], keypoints:list[tuple[int, int]], bins:int=36, save_filename=None):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     descriptors = []
     validpoints = []
     orientations = []
 
-    patch_size = 16
-    H, W, *_ = image.shape
-    print(H, W)
+    patch_size = 8
+    spacing = 5
+    sample_size = patch_size * spacing
+    max_padding = 2 # min padding = 1
+    H, W = gray.shape
+
     for y, x in keypoints:
-        half_patch_size = patch_size // 2
-        if x - half_patch_size < 0 or x + half_patch_size >= W:
+        # find maximal padding
+        half = sample_size // 2
+        padding = None
+        for p in range(max_padding, 0, -1):
+            x_min = x - half - p * spacing
+            x_max = x + half + p * spacing
+            if x_min < 0 or x_max >= W:
+                continue
+            y_min = y - half - p * spacing
+            y_max = y + half + p * spacing
+            if y_min < 0 or y_max >= H:
+                continue
+            padding = p
+            break
+        if padding == None:
             continue
-        if y - half_patch_size < 0 or y + half_patch_size >= H:
-            continue
-        # sample 8x8 from 40x40
-        x_min = x - half_patch_size
-        x_max = x + half_patch_size
-        y_min = y - half_patch_size
-        y_max = y + half_patch_size
-        print("keypoint:", y, x)
-        print(y_min, y_max, x_min, x_max)
 
-        patch = theta[y_min:y_max, x_min:x_max]
-        # patch = cv2.resize(patch, (8, 8))
+        # example: padding = 2
+        # sample 12x12 from 60x60
+        patch = gaussian_blur_with_spacing(gray[y_min:y_max, x_min:x_max], spacing, 0)
 
-        # compute major orientation
-        binSize = 360 / bins
-        histogram = np.zeros(bins)
-        for b in range(bins):
-            histogram[b] = np.sum((patch >= b * binSize) & (patch < (b + 1) * binSize))
-        major_bin = np.argmax(histogram)
-        major_orientation = (major_bin + 0.5) * binSize
-        print("major orientation=", major_orientation)
-        orientations.append(major_orientation)
+        # calculate orientations in 12x12 and compute major orientation in 8x8 patch
+        _, major_orientation = orientation_histogram(patch, 36, padding)
 
         # sub-pixel refinement ?
 
-        rotated = utils.rotate_image(gray, major_orientation, (float(x), float(y)))
-        oriented_patch = rotated[y_min:y_max, x_min:x_max]
-        # print(oriented_patch)
-        oriented_patch = utils.normalize(oriented_patch)
+        # get 8x8 orientation patch from 12x12
+        rotated = utils.rotate_image(patch, 360 - major_orientation)
+        oriented_patch = rotated[padding:padding+patch_size, padding:padding+patch_size]
+        # print(rotated)
+        oriented_patch = utils.normalize(oriented_patch).reshape(-1) # 2D to 1D
 
-        descriptors.append(((y, x), oriented_patch))
-        
         validpoints.append((y, x))
+        descriptors.append(oriented_patch)
+        orientations.append(major_orientation)
 
     if save_filename != None:
         utils.draw_keypoints(image, validpoints, orientations, save_filename)
 
-    return descriptors
+    return (np.array(validpoints), np.array(descriptors), np.array(orientations))
+
+def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarray[np.uint8,3], threshold:float) -> list[tuple[int,int]]:
+    print(descriptors1.shape, descriptors2.shape)
+    # use kd-tree to find two nearest matching points for each decriptors
+    tree = cKDTree(descriptors2)
+    distances, indices = tree.query(descriptors1, k=2)
+
+    # return the tuple of indices of matches in two descriptors
+    # matches = [(i, j), ...] and i, j are indices in descriptors1, descriptors2
+    matches = []
+    for i, (d1, d2) in enumerate(zip(distances[:, 0], distances[:, 1])):
+        # Lowe's ratio test
+        if d1 < threshold * d2:
+            matches.append((i, indices[i, 0]))
+    print(len(matches))
+    return matches
 
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
     H, W, _ = imgs[0].shape
+    imgs = imgs[6:8]
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
-    keyPoints = [harris_detector(img) for img in imgs]
+    keypoints = [harris_detector(img, thresRatio=0.001) for img in imgs]
+    descs = []
+    points = []
+    orientations = []
     for i in range(len(imgs)):
-        desc = feature_descriptor(projs[i], keyPoints[i], save_filename=f"test{i}")
-        # print(desc)
-
+        p, d, o = feature_descriptor(projs[i], keypoints[i])
+        points.append(p)
+        descs.append(d)
+        orientations.append(o)
+    matches = feature_matching(descs[0], descs[1], 0.7)
+    match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
+    match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
+    matched_keypoints1 = points[0][match_idx1]
+    orientations1 = orientations[0][match_idx1]
+    matched_keypoints2 = points[1][match_idx2]
+    orientations2 = orientations[1][match_idx2]
+    utils.draw_keypoints(imgs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
+    utils.draw_keypoints(imgs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
