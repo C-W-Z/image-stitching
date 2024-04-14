@@ -117,7 +117,7 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
         # Lowe's ratio test
         if d1 < threshold * d2:
             matches.append((i, indices[i, 0]))
-    print(len(matches))
+    print("Find Matches", len(matches))
     return matches
 
 if __name__ == '__main__':
