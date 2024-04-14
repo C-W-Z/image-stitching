@@ -9,10 +9,8 @@ def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,3
 
 def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma:float=0):
     H, W = gray.shape
-
     newH = H // spacing
     newW = W // spacing
-
     result = np.zeros((newH, newW), dtype=np.uint8)
     blurred = cv2.GaussianBlur(gray, (spacing, spacing), sigmaX=sigma, sigmaY=sigma)
 
@@ -22,8 +20,7 @@ def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma
             row_end = row_start + spacing
             col_start = j * spacing
             col_end = col_start + spacing
-            # blurred = cv2.GaussianBlur(gray[row_start:row_end, col_start:col_end], (spacing, spacing), sigmaX=sigma, sigmaY=sigma)
-            average = np.mean(blurred[row_start:row_end, col_start:col_end], axis=(0, 1))
+            average = np.mean(blurred[row_start:row_end, col_start:col_end])
             result[i, j] = average.astype(np.uint8)
 
     return result
@@ -40,12 +37,9 @@ def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=
     ori = ori[margin:margin+patch_size, margin:margin+patch_size]
 
     # compute major orientation in 8x8 patch
-    binSize = 360 / bins
-    histogram = np.zeros(bins)
-    for b in range(bins):
-        histogram[b] = np.sum((ori >= b * binSize) & (ori < (b + 1) * binSize))
+    histogram, *_ = np.histogram(ori, bins, range=(0, 360))
     major_bin = np.argmax(histogram)
-    major_orientation = (major_bin + 0.5) * binSize
+    major_orientation = (major_bin + 0.5) * 360 / bins
 
     return (histogram, major_orientation)
 

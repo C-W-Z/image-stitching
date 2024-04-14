@@ -131,43 +131,8 @@ if __name__ == '__main__':
     H, W, _ = imgs[0].shape
 
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
-    print("Complete Cylindrical Projection")
-    keypoints = [harris_detector(img, thresRatio=0.001) for img in imgs]
-    print("Complete Harris Detection")
 
-    descs = []
-    points = []
-    orientations = []
-    for i in range(N):
-        gray = cv2.cvtColor(projs[i], cv2.COLOR_BGR2GRAY)
-        p, d, o = feature_descriptor(gray, keypoints[i])
-        points.append(p)
-        descs.append(d)
-        orientations.append(o)
-        print("Complete Feature Description:", i)
-
-    offsets = []
-    for i in range(N - 1):
-        matches = feature_matching(descs[i], descs[i + 1], 0.7)
-        match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
-        match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
-        matched_keypoints1 = points[i][match_idx1]
-        orientations1 = orientations[i][match_idx1]
-        matched_keypoints2 = points[i + 1][match_idx2]
-        orientations2 = orientations[i + 1][match_idx2]
-        # utils.draw_keypoints(imgs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
-        # utils.draw_keypoints(imgs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
-
-        # left image - right image
-        # the keypoints are at the right part of left image and left part of right image
-        sample_offsets = matched_keypoints1 - matched_keypoints2
-        offset = ransac(sample_offsets, 1, 1000)
-        # print(offset)
-        # stitch(projs[1], projs[0], offset)
-        offsets.append(offset)
-
-    print("offsets =", offsets)
-    # offsets = [(5.961538461538462, 251.92307692307693), (3.923076923076923, 241.96153846153845), (3.8484848484848486, 243.96969696969697), (3.888888888888889, 249.05555555555554), (4.171428571428572, 239.11428571428573), (4.918918918918919, 246.1891891891892), (3.8518518518518516, 248.03703703703704), (4.0344827586206895, 240.06896551724137), (4.157894736842105, 245.8421052631579), (4.92, 246.96), (4.043478260869565, 240.95652173913044), (5.0, 250.07692307692307), (4.903225806451613, 241.16129032258064), (5.0, 249.0), (5.888888888888889, 240.61111111111111), (3.9523809523809526, 243.04761904761904), (4.3, 248.7)]
+    offsets = [(5.1, 251.0), (3.740740740740741, 242.0), (4.9523809523809526, 245.28571428571428), (4.125, 249.03125), (3.888888888888889, 240.03703703703704), (4.911764705882353, 246.1764705882353), (3.8333333333333335, 247.79166666666666), (5.04, 239.12), (4.0476190476190474, 244.04761904761904), (4.84, 246.88), (4.25, 241.0), (3.076923076923077, 249.92307692307693), (4.916666666666667, 240.95833333333334), (2.8461538461538463, 247.69230769230768), (5.6875, 240.125), (5.833333333333333, 242.94444444444446), (3.857142857142857, 245.0)]
 
     s = stitch_all(projs, offsets)
     cv2.imwrite("test_stitch.png", s)

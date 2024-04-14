@@ -75,7 +75,7 @@ def normalize(image:np.ndarray[np.uint8,3]):
     return cv2.normalize(image, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     # return (image - image.mean()) / image.std()
 
-def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]], angles:list[float], filename:str):
+def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]], angles:list[float], filename:str=None):
     assert(len(keypoints) == len(angles))
     image = image.copy()
 
@@ -84,9 +84,10 @@ def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]],
         y, x = keypoints[i]
         cv2.circle(image, (int(x), int(y)), 1, (255, 0, 0), -1)
 
-        end_x = int(x + arrow_length * np.cos(angles[i] * np.pi / 180))
-        end_y = int(y - arrow_length * np.sin(angles[i] * np.pi / 180))
-        cv2.arrowedLine(image, (int(x), int(y)), (end_x, end_y), (0, 0, 255), 1)
+        if not angles is None:
+            end_x = int(x + arrow_length * np.cos(angles[i] * np.pi / 180))
+            end_y = int(y - arrow_length * np.sin(angles[i] * np.pi / 180))
+            cv2.arrowedLine(image, (int(x), int(y)), (end_x, end_y), (0, 0, 255), 1)
 
     cv2.imwrite(f"{filename}.jpg", image)
 
