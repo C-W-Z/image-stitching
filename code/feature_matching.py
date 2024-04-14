@@ -103,7 +103,7 @@ def feature_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, i
     return (np.array(validpoints), np.array(descriptors), np.array(orientations))
 
 def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarray[np.uint8,3], threshold:float) -> list[tuple[int,int]]:
-    print(descriptors1.shape, descriptors2.shape)
+    # print(descriptors1.shape, descriptors2.shape)
     # use kd-tree to find two nearest matching points for each decriptors
     tree = cKDTree(descriptors2)
     distances, indices = tree.query(descriptors1, k=2)
@@ -115,7 +115,7 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
         # Lowe's ratio test
         if d1 < threshold * d2:
             matches.append((i, indices[i, 0]))
-    print("Find Matches", len(matches))
+    print("Find Match Features:", len(matches))
     return matches
 
 if __name__ == '__main__':
