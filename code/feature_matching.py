@@ -89,18 +89,14 @@ def feature_descriptor(image:np.ndarray[np.uint8, 3], keypoints:list[tuple[int, 
         # calculate orientations in 12x12 and compute major orientation in 8x8 patch
         _, major_orientation = orientation_histogram(patch, 36, padding)
 
-        # sub-pixel refinement ?
-        suby, subx = subpixel_keypoints[i]
-        # print(suby, subx)
-        _suby = (suby - y_min) / spacing
-        _subx = (subx - x_min) / spacing
-        # print(suby, subx)
-
         # get 8x8 orientation patch from 12x12
-        rotated = utils.rotate_image(patch, 360 - major_orientation, (_subx, _suby))
+        rotated = utils.rotate_image(patch, 360 - major_orientation)
         oriented_patch = rotated[padding:padding+patch_size, padding:padding+patch_size]
         # print(rotated)
         oriented_patch = utils.normalize(oriented_patch).reshape(-1) # 2D to 1D
+
+        # sub-pixel refinement ?
+        suby, subx = subpixel_keypoints[i]
 
         validpoints.append((suby, subx))
         descriptors.append(oriented_patch)

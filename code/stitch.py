@@ -37,28 +37,47 @@ def ransac(offsets:np.ndarray[float,3], threshold:float, iterations:int=1000):
 
     return (totalY / count, totalX / count)
 
-def stitch(img_left, img_right, offset):
-    dy, dx = offset # dx must be >= 0, img_right needs to be translated right
+def stitch(img_left:np.ndarray[float,3], img_right:np.ndarray[float,3], offset:tuple[float,float]):
+    """
+    Parameters
+    img_left: the image should be stitch on the left
+    img_right: the image should be stitch on the right
+    offset: (dy, dx), the top-left corner of img_right will be stitched at (dy, dx), dx must >= 0
+    """
 
-    new_H = max(img_left.shape[0], int(img_right.shape[0] + np.ceil(dy)))
-    new_W = max(img_left.shape[1], int(img_right.shape[1] + np.ceil(dx)))
+    dy, dx = offset
+    assert(dx >= 0)
+    HL, WL = img_left.shape[:2]
+    HR, WR = img_right.shape[:2]
+
+    new_H = max(HL, HR) + int(np.ceil(abs(dy)))
+    new_W = max(WL, WR) + int(np.ceil(dx))
 
     M = np.float32([[1, 0, dx],
                     [0, 1, dy]])
 
+    overlap_W = WL - dx
+    mask = np.where(img_left != [0, 0, 0])
+    # print(mask)
+
     if dy >= 0:
         combined_image = cv2.warpAffine(img_right, M, (new_W, new_H))
-        mask = np.where(img_left != [0, 0, 0])
         combined_image[mask] = img_left[mask]
     else:
         combined_image = np.zeros((new_H, new_W, 3), dtype=np.uint8)
-        combined_image[-dy:] = img_right
-        combined_image = cv2.warpAffine(img_right, M, (new_W, new_H))
-        mask = np.where(img_left != [0, 0, 0])
-        translated_mask = [(y + dy, x) for y, x in mask]
-        combined_image[mask] = img_left[mask]
+        combined_image[-dy:-dy+HR, :WR] = img_right
+        combined_image = cv2.warpAffine(combined_image, M, (new_W, new_H))
+        translated_mask = (mask[0] - dy, mask[1], mask[2])
+        combined_image[translated_mask] = img_left[mask]
 
     cv2.imwrite("test_stitch.jpg", combined_image)
+    return combined_image
+
+def stitch_all(images, offsets):
+    N = len(images)
+    assert(len(offset) == N - 1)
+    for i, offset in enumerate(offsets):
+        pass
 
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
@@ -84,6 +103,8 @@ if __name__ == '__main__':
     # utils.draw_keypoints(imgs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
     # utils.draw_keypoints(imgs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
 
+    # left image - right image
+    # the keypoints are at the right part of left image and left part of right image
     offsets = matched_keypoints2 - matched_keypoints1
     offset = ransac(offsets, 1, 1000)
     print(offset)
