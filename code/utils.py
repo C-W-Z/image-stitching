@@ -71,11 +71,11 @@ def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndar
     proj[Y, X, 3] = 255 # alpha = 255
     return crop_horizontal(proj)
 
-def rotate_image(image:np.ndarray[np.uint8,3], angle:float, center:tuple[float,float]=None):
+def rotate_image(image:np.ndarray[np.uint8,3], angle:float, centerXY:tuple[float,float]=None):
     H, W, *_ = image.shape
-    if center == None:
-        center = (W / 2, H / 2)
-    M = cv2.getRotationMatrix2D(center, angle, 1)
+    if centerXY == None:
+        centerXY = (W / 2, H / 2)
+    M = cv2.getRotationMatrix2D(centerXY, angle, 1)
     return cv2.warpAffine(image, M, (W, H))
 
 def normalize(image:np.ndarray[np.uint8,3]):
@@ -98,16 +98,16 @@ def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]],
 
     cv2.imwrite(f"{filename}.jpg", image)
 
-def gaussian_weights(shape, y, x, sigma):
+def gaussian_weights(shape, centerYX, sigma):
     """
-    Generate Gaussian weights centered at (x, y) with given sigma.
+    Generate Gaussian weights centered at centerYX = (y, x) with given sigma.
     """
     x_indices = np.arange(shape[1])
     y_indices = np.arange(shape[0])
 
     x_indices, y_indices = np.meshgrid(x_indices, y_indices)
 
-    return np.exp(-((x_indices - x)**2 + (y_indices - y)**2) / (2 * sigma**2))
+    return np.exp(-((x_indices - centerYX[0])**2 + (y_indices - centerYX[1])**2) / (2 * sigma**2))
 
 if __name__ == '__main__':
     imgs, focals = read_images("data\parrington\list.txt")
