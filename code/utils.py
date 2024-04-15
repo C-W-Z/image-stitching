@@ -98,6 +98,17 @@ def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]],
 
     cv2.imwrite(f"{filename}.jpg", image)
 
+def gaussian_weights(shape, y, x, sigma):
+    """
+    Generate Gaussian weights centered at (x, y) with given sigma.
+    """
+    x_indices = np.arange(shape[1])
+    y_indices = np.arange(shape[0])
+
+    x_indices, y_indices = np.meshgrid(x_indices, y_indices)
+
+    return np.exp(-((x_indices - x)**2 + (y_indices - y)**2) / (2 * sigma**2))
+
 if __name__ == '__main__':
     imgs, focals = read_images("data\parrington\list.txt")
     proj = cylindrical_projection(imgs[0], focals[0])

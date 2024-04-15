@@ -7,9 +7,9 @@ from Harris_by_ShuoEn import *
 def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,2]) -> np.ndarray[float,2]:
     keypoints = keypoints.astype(np.float32)
     keypoints = keypoints.reshape(-1, 1, 2)
-    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
-    cv2.cornerSubPix(gray, cv2.UMat(keypoints), (5, 5), (-1, -1), criteria)
-    return keypoints
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    keypoints = cv2.cornerSubPix(gray, cv2.UMat(keypoints), (3, 3), (-1, -1), criteria)
+    return keypoints.get().reshape(-1, 2)
 
 def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma:float=0):
     H, W = gray.shape
@@ -29,7 +29,7 @@ def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma
 
     return result
 
-def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=0):
+def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=0, center:tuple[float,float]=None):
     H, W = patch.shape
     assert(H == W)
     patch_size = W - 2 * margin
@@ -39,17 +39,28 @@ def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=
     Iy, Ix = np.gradient(I)
     ori = np.mod(np.arctan2(Iy, Ix) * 180 / np.pi, 360)
     ori = ori[margin:margin+patch_size, margin:margin+patch_size]
+    if center != None:
+        weight = utils.gaussian_weights((patch_size, patch_size), center[0], center[1], 0.15)
+        ori *= weight
 
     # compute major orientation in 8x8 patch
     histogram, *_ = np.histogram(ori, bins, range=(0, 360))
-    major_bin = np.argmax(histogram)
+    # major_bin = np.argmax(histogram)
+    sorted_bins = np.argsort(histogram)[::-1] # sort from max to min
+    major_bin = sorted_bins[0]
+    second_bin = sorted_bins[1]
+
     major_orientation = (major_bin + 0.5) * 360 / bins
 
-    return (histogram, major_orientation)
+    if second_bin >= 0.8 * major_bin:
+        second_orientation = (second_bin + 0.5) * 360 / bins
+    else:
+        second_orientation = None
+
+    return (histogram, major_orientation, second_orientation)
 
 def msop_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]]):
     subpixel_keypoints = subpixel_refinement(gray, keypoints)
-    subpixel_keypoints = subpixel_keypoints.reshape(-1, 2)
 
     descriptors = []
     validpoints = []
@@ -85,20 +96,87 @@ def msop_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]
         patch = gaussian_blur_with_spacing(gray[y_min:y_max, x_min:x_max], spacing, 0)
 
         # calculate orientations in 12x12 and compute major orientation in 8x8 patch
-        _, major_orientation = orientation_histogram(patch, 36, padding)
+        _, major_orientation, second_orientation = orientation_histogram(patch, 36, padding)
 
         # sub-pixel refinement ?
         suby, subx = subpixel_keypoints[i]
 
-        # get 8x8 orientation patch from 12x12
-        rotated = utils.rotate_image(patch, 360 - major_orientation)
-        oriented_patch = rotated[padding:padding+patch_size, padding:padding+patch_size]
-        # print(rotated)
-        oriented_patch = utils.normalize(oriented_patch).reshape(-1) # 2D to 1D
+        def get_desc(orientation:float):
+            # get 8x8 orientation patch from 12x12
+            rotated = utils.rotate_image(patch, 360 - orientation)
+            oriented_patch = rotated[padding:padding+patch_size, padding:padding+patch_size]
+            # print(rotated)
+            oriented_patch = utils.normalize(oriented_patch).reshape(-1) # 2D to 1D
 
-        validpoints.append((suby, subx))
-        descriptors.append(oriented_patch)
-        orientations.append(major_orientation)
+            validpoints.append((suby, subx))
+            descriptors.append(oriented_patch)
+            orientations.append(orientation)
+
+        get_desc(major_orientation)
+        if second_orientation != None:
+            get_desc(second_orientation)
+
+    return (np.array(validpoints), np.array(descriptors), np.array(orientations))
+
+def sift_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]]):
+    """
+    With SIFT feature detection, gray should be a DoG image.
+    Otherwise just use simple gray image.
+    """
+
+    validpoints = []
+    descriptors = []
+    orientations = []
+
+    patch_size = 16
+    padding = 7
+    half = patch_size // 2
+    for y, x in keypoints:
+        suby, subx = y, x
+        y, x = int(np.ceil(y)), int(np.ceil(x))
+        _y, _x = suby - y, subx - x
+
+        x_min = x - half - padding
+        x_max = x + half + padding
+        if x_min < 0 or x_max >= W:
+            continue
+        y_min = y - half - padding
+        y_max = y + half + padding
+        if y_min < 0 or y_max >= H:
+            continue
+
+        patch = gray[y_min:y_max, x_min:x_max]
+        if patch.shape[0] != patch.shape[1]:
+            continue
+
+        _, major_orientation, second_orientation = orientation_histogram(patch, 36, padding, (half+_y, half+_x))
+
+        def get_desc(orientation:float):
+            # get 16x16 orientation patch from 20x20
+            rotated = utils.rotate_image(patch, 360 - orientation)
+            oriented_patch = rotated[padding:padding+patch_size, padding:padding+patch_size]
+            # print(rotated)
+
+            # get 4x4x8 desciption vector
+            desc = np.zeros((4, 4, 8), dtype=np.float32)
+            for i in range(4):
+                for j in range(4):
+                    region = oriented_patch[i*4:(i+1)*4, j*4:(j+1)*4]
+                    histogram, *_ = orientation_histogram(region, 8, 0)
+                    desc[i, j] = histogram
+            desc = desc.reshape(-1)
+
+            validpoints.append((suby, subx))
+            descriptors.append(desc)
+            orientations.append(orientation)
+
+        get_desc(major_orientation)
+        if second_orientation != None:
+            get_desc(second_orientation)
+
+    for x in range(4):
+        for y in range(4):
+            patch = gray[x*4:(x+1)*4, y*4:(y+1)*4]
 
     return (np.array(validpoints), np.array(descriptors), np.array(orientations))
 
@@ -120,19 +198,24 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
     H, W, _ = imgs[0].shape
-    imgs = imgs[3:5]
+    imgs = imgs[6:8]
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
-    keypoints = [harris_detector(img, thresRatio=0.1) for img in projs]
+    keypoints = [harris_detector(img, thresRatio=0.05) for img in projs]
+
     descs = []
     points = []
     orientations = []
     for i in range(len(projs)):
         gray = cv2.cvtColor(projs[i], cv2.COLOR_BGRA2GRAY)
-        p, d, o = msop_descriptor(gray, keypoints[i])
+        subpixel_keypoints = subpixel_refinement(gray, keypoints[i])
+        p, d, o = sift_descriptor(gray, subpixel_keypoints)
         points.append(p)
         descs.append(d)
         orientations.append(o)
-    matches = feature_matching(descs[0], descs[1], 0.7)
+        print("Complete Feature Description:", len(p))
+
+    matches = feature_matching(descs[0], descs[1], 0.8)
+
     match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
     match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
     matched_keypoints1 = points[0][match_idx1]
