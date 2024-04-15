@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from scipy.ndimage import shift
 import utils
 from feature_matching import *
 from Harris_by_ShuoEn import *
@@ -113,18 +114,18 @@ def stitch(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], of
     combined[combined[:, :, 3] > 225, 3] = 255
     return combined
 
-def end_to_end_align(paranoma:np.ndarray[np.uint8,3], offsetY:float):
-    print(offsetY)
-    H, W, C = paranoma.shape
-    dy = np.linspace(0, offsetY, W, dtype=int)
+def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
+    # print(offsetY)
+    H, W, C = panorama.shape
+    dy = np.linspace(0, offsetY, W, dtype=np.float32)
     oy = int(np.ceil(offsetY))
-    align = np.zeros((H + oy, W, C), dtype=np.uint8)
-    align[oy:oy+H] = paranoma
-    for w in range(W):
-        align[:,w] = np.roll(align[:,w], -dy[w], axis=0)
-    return align
+    align = np.zeros((H + oy, W, C), dtype=np.float32)
+    align[oy:oy+H] = panorama
+    for x in range(W):
+        align[:,x] = shift(align[:,x], (-dy[x], 0), mode='nearest', order=1)
+    return align.astype(np.uint8)
 
-def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2]):
+def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_to_end:bool=False):
     N = len(offsets)
     assert(N == len(images))
     s = images[0]
@@ -135,7 +136,8 @@ def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2]):
         oy += offset[0]
         ox += offset[1]
         s = stitch(s, images[i + 1], (oy, ox))
-    s = end_to_end_align(s, oy - offsets[-1][0])
+    if end_to_end:
+        s = end_to_end_align(s, oy - offsets[-1][0])
     s = crop_vertical(s)
     print("Complete Image Stitching")
     return s
@@ -149,8 +151,12 @@ if __name__ == '__main__':
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
 
     # offsets = [(5.1, 251.0), (3.740740740740741, 242.0), (4.9523809523809526, 245.28571428571428), (4.125, 249.03125), (3.888888888888889, 240.03703703703704), (4.911764705882353, 246.1764705882353), (3.8333333333333335, 247.79166666666666), (5.04, 239.12), (4.0476190476190474, 244.04761904761904), (4.84, 246.88), (4.25, 241.0), (3.076923076923077, 249.92307692307693), (4.916666666666667, 240.95833333333334), (2.8461538461538463, 247.69230769230768), (5.6875, 240.125), (5.833333333333333, 242.94444444444446), (3.857142857142857, 245.0)]
-    
-    offsets = [(5.0, 246.3), (4.230769230769231, 239.92307692307693), (3.142857142857143, 250.28571428571428), (3.8, 244.0), (4.428571428571429, 249.85714285714286), (3.75, 241.25), (3.3333333333333335, 243.33333333333334), (4.0, 244.5), (3.3636363636363638, 238.0909090909091), (4.125, 252.875), (4.0, 242.83333333333334), (3.857142857142857, 245.21428571428572), (5.181818181818182, 249.0), (2.8823529411764706, 239.94117647058823), (5.0, 245.92857142857142), (3.4166666666666665, 248.08333333333334), (5.142857142857143, 238.57142857142858), (3.9375, 244.875)]
 
-    s = stitch_all(projs, offsets)
+    # offsets = [(5.0, 246.3), (4.230769230769231, 239.92307692307693), (3.142857142857143, 250.28571428571428), (3.8, 244.0), (4.428571428571429, 249.85714285714286), (3.75, 241.25), (3.3333333333333335, 243.33333333333334), (4.0, 244.5), (3.3636363636363638, 238.0909090909091), (4.125, 252.875), (4.0, 242.83333333333334), (3.857142857142857, 245.21428571428572), (5.181818181818182, 249.0), (2.8823529411764706, 239.94117647058823), (5.0, 245.92857142857142), (3.4166666666666665, 248.08333333333334), (5.142857142857143, 238.57142857142858), (3.9375, 244.875)]
+
+    offsets = [(4.7631578947368425, 246.92105263157896), (4.056603773584905, 241.1320754716981), (3.9545454545454546, 249.9090909090909), (4.276595744680851, 241.06382978723406), (4.173076923076923, 248.90384615384616), (4.14, 241.04), 
+(4.05, 244.01666666666668), (4.176470588235294, 244.94117647058823), (4.0, 239.16216216216216), (4.057142857142857, 
+252.05714285714285), (4.1875, 242.125), (4.183333333333334, 245.06666666666666), (4.160714285714286, 249.25), (4.078125, 240.046875), (4.69811320754717, 245.0943396226415), (4.111111111111111, 248.88888888888889), (4.104166666666667, 239.125), (3.8666666666666667, 244.35555555555555)]
+
+    s = stitch_all(projs, offsets, True)
     cv2.imwrite("test_stitch.png", s)

@@ -4,7 +4,11 @@ from scipy.spatial import cKDTree
 import utils
 from Harris_by_ShuoEn import *
 
-def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,3]):
+def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,2]) -> np.ndarray[float,2]:
+    keypoints = keypoints.astype(np.float32)
+    keypoints = keypoints.reshape(-1, 1, 2)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
+    cv2.cornerSubPix(gray, cv2.UMat(keypoints), (5, 5), (-1, -1), criteria)
     return keypoints
 
 def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma:float=0):
@@ -43,8 +47,9 @@ def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=
 
     return (histogram, major_orientation)
 
-def feature_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]]):
+def msop_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]]):
     subpixel_keypoints = subpixel_refinement(gray, keypoints)
+    subpixel_keypoints = subpixel_keypoints.reshape(-1, 2)
 
     descriptors = []
     validpoints = []
@@ -57,6 +62,7 @@ def feature_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, i
     H, W = gray.shape
 
     for i, (y, x) in enumerate(keypoints):
+        y, x = int(y), int(x)
         # find maximal padding
         half = sample_size // 2
         padding = None
@@ -81,14 +87,14 @@ def feature_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, i
         # calculate orientations in 12x12 and compute major orientation in 8x8 patch
         _, major_orientation = orientation_histogram(patch, 36, padding)
 
+        # sub-pixel refinement ?
+        suby, subx = subpixel_keypoints[i]
+
         # get 8x8 orientation patch from 12x12
         rotated = utils.rotate_image(patch, 360 - major_orientation)
         oriented_patch = rotated[padding:padding+patch_size, padding:padding+patch_size]
         # print(rotated)
         oriented_patch = utils.normalize(oriented_patch).reshape(-1) # 2D to 1D
-
-        # sub-pixel refinement ?
-        suby, subx = subpixel_keypoints[i]
 
         validpoints.append((suby, subx))
         descriptors.append(oriented_patch)
@@ -97,7 +103,6 @@ def feature_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, i
     return (np.array(validpoints), np.array(descriptors), np.array(orientations))
 
 def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarray[np.uint8,3], threshold:float) -> list[tuple[int,int]]:
-    # print(descriptors1.shape, descriptors2.shape)
     # use kd-tree to find two nearest matching points for each decriptors
     tree = cKDTree(descriptors2)
     distances, indices = tree.query(descriptors1, k=2)
@@ -115,15 +120,15 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
     H, W, _ = imgs[0].shape
-    imgs = imgs[6:8]
+    imgs = imgs[3:5]
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
-    keypoints = [harris_detector(img, thresRatio=0.001) for img in imgs]
+    keypoints = [harris_detector(img, thresRatio=0.1) for img in projs]
     descs = []
     points = []
     orientations = []
-    for i in range(len(imgs)):
-        gray = cv2.cvtColor(projs[i], cv2.COLOR_BGR2GRAY)
-        p, d, o = feature_descriptor(gray, keypoints[i])
+    for i in range(len(projs)):
+        gray = cv2.cvtColor(projs[i], cv2.COLOR_BGRA2GRAY)
+        p, d, o = msop_descriptor(gray, keypoints[i])
         points.append(p)
         descs.append(d)
         orientations.append(o)
@@ -134,5 +139,5 @@ if __name__ == '__main__':
     orientations1 = orientations[0][match_idx1]
     matched_keypoints2 = points[1][match_idx2]
     orientations2 = orientations[1][match_idx2]
-    utils.draw_keypoints(imgs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
-    utils.draw_keypoints(imgs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
+    utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
+    utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1.jpg")

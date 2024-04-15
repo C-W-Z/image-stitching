@@ -10,19 +10,19 @@ if __name__ == '__main__':
 
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
     print("Complete Cylindrical Projection")
-    keypoints = [harris_detector(img, 0.1) for img in imgs]
+    keypoints = [harris_detector(img, 0.05) for img in projs]
     print("Complete Harris Detection")
 
     descs = []
     points = []
     orientations = []
     for i in range(N):
-        gray = cv2.cvtColor(projs[i], cv2.COLOR_BGR2GRAY)
-        p, d, o = feature_descriptor(gray, keypoints[i])
+        gray = cv2.cvtColor(projs[i], cv2.COLOR_BGRA2GRAY)
+        p, d, o = msop_descriptor(gray, keypoints[i])
         points.append(p)
         descs.append(d)
         orientations.append(o)
-        print("Complete Feature Description:", i)
+        print("Complete Feature Description:", len(p))
         utils.draw_keypoints(projs[i], p, o, f"test{i}")
 
     offsets = []
