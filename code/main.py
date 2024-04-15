@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
     print("Complete Cylindrical Projection")
-    keypoints = [harris_detector(img) for img in imgs]
+    keypoints = [harris_detector(img, 0.1) for img in imgs]
     print("Complete Harris Detection")
 
     descs = []
@@ -26,14 +26,14 @@ if __name__ == '__main__':
         utils.draw_keypoints(projs[i], p, o, f"test{i}")
 
     offsets = []
-    for i in range(N - 1):
-        matches = feature_matching(descs[i], descs[i + 1], 0.7)
+    for i in range(N):
+        matches = feature_matching(descs[i], descs[(i + 1) % N], 0.7)
         match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
         match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
         matched_keypoints1 = points[i][match_idx1]
         orientations1 = orientations[i][match_idx1]
-        matched_keypoints2 = points[i + 1][match_idx2]
-        orientations2 = orientations[i + 1][match_idx2]
+        matched_keypoints2 = points[(i + 1) % N][match_idx2]
+        orientations2 = orientations[(i + 1) % N][match_idx2]
 
         # left image - right image
         # the keypoints are at the right part of left image and left part of right image
@@ -44,4 +44,4 @@ if __name__ == '__main__':
     print("offsets =", offsets)
 
     s = stitch.stitch_all(projs, offsets)
-    cv2.imwrite("test_stitch.png", s)
+    cv2.imwrite("test_parrington.png", s)
