@@ -5,7 +5,7 @@ import utils
 from feature_matching import *
 from Harris_by_ShuoEn import *
 
-def ransac(offsets:np.ndarray[float,2], threshold:float, iterations:int=1000):
+def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:int=1000):
     # offsets = keypoints1 - keypoints2
     N = len(offsets)
     best_offset = None

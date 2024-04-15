@@ -38,7 +38,7 @@ if __name__ == '__main__':
         # left image - right image
         # the keypoints are at the right part of left image and left part of right image
         sample_offsets = matched_keypoints1 - matched_keypoints2
-        offset = stitch.ransac(sample_offsets, 1, 1000)
+        offset = stitch.ransac_translation(sample_offsets, 1, 1000)
         offsets.append(offset)
 
     print("offsets =", offsets)

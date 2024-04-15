@@ -42,6 +42,7 @@ def harris_detector(image, k=0.04, thresRatio=0.01):
     point = np.where(R>0)
     point = np.array(point).T  # (2, n) => (n, 2)
     # point[:,[0, 1]] = point[:,[1, 0]]  # (y, x) => (x, y)
+    print("Find", len(point), "features")
     return point
 
 def plot_points(Point):
