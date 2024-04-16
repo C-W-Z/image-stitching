@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
     print("Complete Cylindrical Projection")
-    keypoints = [harris_detector(img, 0.05) for img in projs]
+    keypoints = [harris_detector(img, 0.1) for img in projs]
     print("Complete Harris Detection")
 
     descs = []
@@ -20,7 +20,7 @@ if __name__ == '__main__':
         gray = cv2.cvtColor(projs[i], cv2.COLOR_BGRA2GRAY)
         keypoints[i] = subpixel_refinement(gray, keypoints[i])
         # utils.draw_keypoints(projs[i], keypoints[i], None, f"test{i}")
-        p, d, o = msop_descriptor(gray, keypoints[i])
+        p, d, o = sift_descriptor(gray, keypoints[i])
         points.append(p)
         descs.append(d)
         orientations.append(o)
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     offsets = []
     for i in range(N):
-        matches = feature_matching(descs[i], descs[(i + 1) % N], 0.7)
+        matches = feature_matching(descs[i], descs[(i + 1) % N], 0.8)
         match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
         match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
         matched_keypoints1 = points[i][match_idx1]
@@ -45,5 +45,5 @@ if __name__ == '__main__':
 
     print("offsets =", offsets)
 
-    s = stitch.stitch_all(projs, offsets)
+    s = stitch.stitch_all(projs, offsets, True)
     cv2.imwrite("test_parrington.png", s)

@@ -207,7 +207,7 @@ if __name__ == '__main__':
     # projs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(len(imgs))]
     grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in projs]
 
-    keypoints = [harris_detector(img, thresRatio=0.05) for img in projs]
+    keypoints = [harris_detector(img, thresRatio=0.1) for img in projs]
 
     descs = []
     points = []
@@ -221,7 +221,7 @@ if __name__ == '__main__':
         print("Complete Feature Description:", len(p))
         utils.draw_keypoints(projs[i], keypoints[i], None, f"test__{i}")
 
-    matches = feature_matching(descs[0], descs[1], 0.9)
+    matches = feature_matching(descs[0], descs[1], 0.8)
 
     match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
     match_idx2 = np.array([j for _, j in matches], dtype=np.int32)

@@ -12,6 +12,29 @@ def compute_gradient(image):
     Iy, Ix = np.gradient(I)
     return Ix, Iy
 
+def nms(R:np.ndarray[float,2], threshold:float, winSize:int=5):
+    H, W = R.shape
+    feature_points = np.empty((0, 2))
+
+    for y in range(0, H, winSize):
+        for x in range(0, W, winSize):
+            region = R[y:y+winSize, x:x+winSize]
+
+            above_threshold = np.where(region > threshold)
+
+            if len(above_threshold[0]) > 0:
+                new_y = y + above_threshold[0]
+                new_x = x + above_threshold[1]
+                new_points = np.array([new_y, new_x]).T
+                feature_points = np.concatenate((feature_points, new_points), axis=0)
+            else:
+                max_index = np.unravel_index(np.argmax(region), region.shape)
+                new_y = y + max_index[0]
+                new_x = x + max_index[1]
+                feature_points = np.concatenate((feature_points, np.array([[new_y, new_x]])), axis=0)
+
+    return feature_points
+
 def harris_detector(image, k=0.04, thresRatio=0.01):
     # Compute x and y derivatives of image
     Ix, Iy = compute_gradient(image)
@@ -34,14 +57,15 @@ def harris_detector(image, k=0.04, thresRatio=0.01):
     R = detM - k*(traceM**2)
 
     # Threshold on value of R and local maximum
-    threshold = thresRatio*np.max(R)
-    R[R<threshold] = 0
+    # threshold = thresRatio*np.max(R)
+    # R[R<threshold] = 0
     localMaxR = maximum_filter(R, size=3, mode='constant')
     R[R<localMaxR] = 0
     # show_heatimage(R)
-    point = np.where(R>0)
-    point = np.array(point).T  # (2, n) => (n, 2)
+    # point = np.where(R>0)
+    # point = np.array(point).T  # (2, n) => (n, 2)
     # point[:,[0, 1]] = point[:,[1, 0]]  # (y, x) => (x, y)
+    point = nms(R, thresRatio*np.max(R), 15)
     print("Find", len(point), "features")
     return point
 
