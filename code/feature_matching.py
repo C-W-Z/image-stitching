@@ -3,6 +3,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 import utils
 from Harris_by_ShuoEn import *
+import stitch
 
 def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,2]) -> np.ndarray[float,2]:
     keypoints = keypoints.astype(np.float32)
@@ -128,6 +129,7 @@ def sift_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]
     descriptors = []
     orientations = []
 
+    H, W = gray.shape
     patch_size = 16
     padding = 7
     half = patch_size // 2
@@ -199,24 +201,27 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
 
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
-    H, W, _ = imgs[0].shape
+    # H, W, _ = imgs[0].shape
     imgs = imgs[6:8]
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
+    # projs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(len(imgs))]
+    grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in projs]
+
     keypoints = [harris_detector(img, thresRatio=0.05) for img in projs]
 
     descs = []
     points = []
     orientations = []
     for i in range(len(projs)):
-        gray = cv2.cvtColor(projs[i], cv2.COLOR_BGRA2GRAY)
-        subpixel_keypoints = subpixel_refinement(gray, keypoints[i])
-        p, d, o = sift_descriptor(gray, subpixel_keypoints)
+        subpixel_keypoints = subpixel_refinement(grays[i], keypoints[i])
+        p, d, o = sift_descriptor(grays[i], subpixel_keypoints)
         points.append(p)
         descs.append(d)
         orientations.append(o)
         print("Complete Feature Description:", len(p))
+        utils.draw_keypoints(projs[i], keypoints[i], None, f"test__{i}")
 
-    matches = feature_matching(descs[0], descs[1], 0.8)
+    matches = feature_matching(descs[0], descs[1], 0.9)
 
     match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
     match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
@@ -226,3 +231,24 @@ if __name__ == '__main__':
     orientations2 = orientations[1][match_idx2]
     utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
     utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
+
+    H = stitch.ransac_homography(matched_keypoints1, matched_keypoints2, 1, 5000)
+    # H, _ = cv2.findHomography(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], cv2.RANSAC, ransacReprojThreshold=0.01, confidence=0.99)
+    # H, _ = cv2.estimateAffinePartial2D(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=0.01 ,confidence=0.99)
+    print(H)
+    # H = [[1, 0, 248.9],
+    #      [0, 1, 4.17],
+    #      [0, 0, 1]]
+    # H = np.array(H)
+    h1, w1, _ = projs[0].shape
+    h2, w2, _ = projs[1].shape
+    new_W = h1 + h2
+    new_H = w1 + w2
+    h = new_H//4
+    w = new_W//4
+    result = np.zeros((new_H, new_W, 4), dtype=np.uint8)
+    result[h:h+h1, w:w+w1] = projs[0]
+    result = cv2.warpPerspective(result, H, (new_W, new_H))
+    # result = cv2.warpAffine(result, H, (new_W, new_H))
+    result[h:h+h2, w:w+w2] = projs[1]
+    cv2.imwrite("test.png", result)

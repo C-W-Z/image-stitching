@@ -18,6 +18,8 @@ if __name__ == '__main__':
     orientations = []
     for i in range(N):
         gray = cv2.cvtColor(projs[i], cv2.COLOR_BGRA2GRAY)
+        keypoints[i] = subpixel_refinement(gray, keypoints[i])
+        # utils.draw_keypoints(projs[i], keypoints[i], None, f"test{i}")
         p, d, o = msop_descriptor(gray, keypoints[i])
         points.append(p)
         descs.append(d)
@@ -31,14 +33,14 @@ if __name__ == '__main__':
         match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
         match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
         matched_keypoints1 = points[i][match_idx1]
-        orientations1 = orientations[i][match_idx1]
+        # orientations1 = orientations[i][match_idx1]
         matched_keypoints2 = points[(i + 1) % N][match_idx2]
-        orientations2 = orientations[(i + 1) % N][match_idx2]
+        # orientations2 = orientations[(i + 1) % N][match_idx2]
 
         # left image - right image
         # the keypoints are at the right part of left image and left part of right image
         sample_offsets = matched_keypoints1 - matched_keypoints2
-        offset = stitch.ransac_translation(sample_offsets, 1, 1000)
+        offset = stitch.ransac_translation(sample_offsets, 0.5, 1000)
         offsets.append(offset)
 
     print("offsets =", offsets)

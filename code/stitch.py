@@ -1,12 +1,13 @@
 import cv2
 import numpy as np
 from scipy.ndimage import shift
+from scipy.spatial.distance import euclidean
 import utils
 from feature_matching import *
 from Harris_by_ShuoEn import *
+from dlt import dlt
 
 def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:int=1000):
-    # offsets = keypoints1 - keypoints2
     N = len(offsets)
     best_offset = None
     max_inliner_count = -1
@@ -16,29 +17,27 @@ def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:
         for j in range(N):
             if i == j:
                 continue
-            dy, dx = offsets[i] - offsets[j]
-            if np.sqrt(dy ** 2 + dx ** 2) <= threshold:
+            if euclidean(offsets[i], offsets[j]) <= threshold:
                 inliner_count += 1
         if max_inliner_count < inliner_count:
             max_inliner_count = inliner_count
             best_offset = offsets[i]
 
-    # print(best_offset)
+    print(f"Find {max_inliner_count} inliners in {N} matches")
 
     # calculate average offset
     totalY = 0
     totalX = 0
     count = 0
     for i in range(N):
-        dy, dx = best_offset - offsets[i]
-        if np.sqrt(dy ** 2 + dx ** 2) <= threshold:
+        if euclidean(best_offset, offsets[i]) <= threshold:
             totalY += offsets[i][0]
             totalX += offsets[i][1]
             count += 1
 
     return (totalY / count, totalX / count)
 
-def stitch(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:tuple[float,float]):
+def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:tuple[float,float]):
     """
     Parameters
     img_left: the image should be stitch on the left (4 channels BGRA)
@@ -135,12 +134,44 @@ def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_t
             break
         oy += offset[0]
         ox += offset[1]
-        s = stitch(s, images[i + 1], (oy, ox))
+        s = stitch_horizontal(s, images[i + 1], (oy, ox))
     if end_to_end:
         s = end_to_end_align(s, oy - offsets[-1][0])
     s = crop_vertical(s)
     print("Complete Image Stitching")
     return s
+
+def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], threshold:float, iterations:int=1000):
+    assert(srcpoints.shape == dstpoints.shape)
+    N = len(srcpoints)
+    srcpoints = srcpoints[:, ::-1] # [(y,x)] to [(x,y)]
+    dstpoints = dstpoints[:, ::-1] # [(y,x)] to [(x,y)]
+    # best_H = None
+    max_inliner_count = 0
+    best_inliners = None
+    for _ in range(iterations):
+        indices = np.random.choice(N, 4, replace=False)
+        inliner_count = 0
+        H = dlt(srcpoints[indices], dstpoints[indices])
+        if np.nan in H or np.inf in H:
+            continue
+        inliners = indices.copy()
+        for j in range(N):
+            if j in indices:
+                continue
+            src = np.append(srcpoints[j], 1)
+            dst = (H @ src.T).T[:2]
+            if euclidean(dstpoints[j], dst) <= threshold:
+                inliner_count += 1
+                np.append(inliners, j)
+        if max_inliner_count < inliner_count:
+            max_inliner_count = inliner_count
+            # best_H = H
+            best_inliners = inliners
+
+    print(f"Find {max_inliner_count} inliners in {N} matches")
+    H = dlt(srcpoints[best_inliners], dstpoints[best_inliners])
+    return H
 
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
