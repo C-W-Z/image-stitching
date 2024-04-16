@@ -127,6 +127,12 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
 def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_to_end:bool=False):
     N = len(offsets)
     assert(N == len(images))
+
+    if end_to_end:
+        s = stitch_horizontal(images[-1], images[0], offsets[-1])
+        images[-1] = s[:, :s.shape[0]//2]
+        images[0] = s[:, s.shape[0]//2:]
+
     s = images[0]
     oy, ox = 0, 0
     for i, offset in enumerate(offsets):
@@ -135,8 +141,10 @@ def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_t
         oy += offset[0]
         ox += offset[1]
         s = stitch_horizontal(s, images[i + 1], (oy, ox))
+
     if end_to_end:
         s = end_to_end_align(s, oy - offsets[-1][0])
+
     s = crop_vertical(s)
     print("Complete Image Stitching")
     return s
