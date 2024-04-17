@@ -185,13 +185,9 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
     if end_to_end:
         s = stitch_horizontal(images[-1], images[0], offsets[-1], blending)
         divideX = s.shape[1] - images[-1].shape[1]
-
         if offsets[-1][0] > 0:
-            dy = int(np.ceil(offsets[-1][0]))
-            images[0] = s[dy:, divideX:]
-        else:
-            images[0] = s[:, divideX:]
-
+            offsets[0][0] += offsets[-1][0]
+        images[0] = s[:, divideX:]
         images[-1] = s[:, :divideX]
 
     s = images[0]
@@ -330,6 +326,7 @@ if __name__ == '__main__':
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
 
     offsets = [(4.818640873349946, 247.104335741065), (3.961816606067476, 241.08839616321382), (4.498912266322544, 251.8507334391276), (4.486582040786743, 241.54479026794434), (4.276208567064862, 249.0492944052053), (4.1, 240.975), (4.076923076923077, 244.28205128205127), (4.2105263157894735, 245.0), (4.200587879527699, 239.85669361461294), (4.179313312877309, 252.2882905439897), (4.319418334960938, 241.9544413248698), (4.1521739130434785, 244.52173913043478), (4.61705849387429, 250.04984560879794), (4.203607177734375, 240.68699951171874), (5.067944613370028, 244.1397372159091), (4.8, 247.55), (4.676370143890381, 239.73403453826904), (3.831537882486979, 244.12783014206659)]
+    offsets = np.array(offsets)
 
     s = stitch_all_horizontal(projs, offsets, BlendingType.SeamFinding, True)
     cv2.imwrite("test_seam_red.png", s)
