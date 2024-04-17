@@ -124,7 +124,7 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
         align[:,x] = shift(align[:,x], (-dy[x], 0), mode='nearest', order=1)
     return align.astype(np.uint8)
 
-def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_to_end:bool=False):
+def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_to_end:bool=False):
     N = len(offsets)
     assert(N == len(images))
 
@@ -152,34 +152,42 @@ def stitch_all(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_t
 def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], threshold:float, iterations:int=1000):
     assert(srcpoints.shape == dstpoints.shape)
     N = len(srcpoints)
+    assert(N >= 4)
     srcpoints = srcpoints[:, ::-1] # [(y,x)] to [(x,y)]
     dstpoints = dstpoints[:, ::-1] # [(y,x)] to [(x,y)]
-    # best_H = None
+    best_H = None
     max_inliner_count = 0
-    best_inliners = None
+    best_inliners = []
     for _ in range(iterations):
         indices = np.random.choice(N, 4, replace=False)
         inliner_count = 0
-        H = dlt(srcpoints[indices], dstpoints[indices])
-        if np.nan in H or np.inf in H:
+        # H = dlt(srcpoints[indices], dstpoints[indices])
+        H, _ = cv2.findHomography(srcpoints[indices], dstpoints[indices])
+        if H is None or np.nan in H or np.inf in H:
             continue
-        inliners = indices.copy()
+        # inliners = indices.copy()
+        inliners = np.empty((0,), dtype=np.int32)
         for j in range(N):
-            if j in indices:
-                continue
+            # if j in indices:
+            #     continue
             src = np.append(srcpoints[j], 1)
             dst = (H @ src.T).T[:2]
             if euclidean(dstpoints[j], dst) <= threshold:
                 inliner_count += 1
-                np.append(inliners, j)
+                inliners = np.append(inliners, j)
         if max_inliner_count < inliner_count:
             max_inliner_count = inliner_count
-            # best_H = H
+            best_H = H
             best_inliners = inliners
 
     print(f"Find {max_inliner_count} inliners in {N} matches")
-    H = dlt(srcpoints[best_inliners], dstpoints[best_inliners])
-    return H
+    assert(max_inliner_count >= 4)
+    # print(best_inliners)
+    # best_H = dlt(srcpoints[best_inliners], dstpoints[best_inliners])
+    H, _ = cv2.findHomography(srcpoints[best_inliners], dstpoints[best_inliners])
+    if not (H is None or np.nan in H or np.inf in H):
+        best_H = H
+    return best_H
 
 def estimate_transformed_corners(H:int, W:int, M:np.ndarray[float,2]):
     corners = np.array([[0, 0, 1], [0, H-1, 1], [W-1, 0, 1], [W-1, H-1, 1]], dtype=np.float32)
@@ -227,6 +235,31 @@ def stitch_homography(src:np.ndarray[np.uint8,3], dst:np.ndarray[np.uint8,3], M:
     result[translated_alpha] = dst[alpha]
     return result
 
+def stitch_all_homography(images:np.ndarray[np.uint8,3], Ms:list[np.ndarray[float,3]]):
+    N = len(images)
+
+    # if end_to_end:
+    #     s = stitch_horizontal(images[-1], images[0], offsets[-1])
+    #     images[-1] = s[:, :s.shape[0]//2]
+    #     images[0] = s[:, s.shape[0]//2:]
+
+    s = images[0]
+    H = np.eye(3)
+    for i, M in enumerate(Ms):
+        if i == N - 1:
+            break
+        if M.shape == (2, 3): # Affine
+            M = np.append(M, np.array([[0, 0, 1]]), axis=0)
+        H = M @ H
+        s = stitch_homography(images[i + 1], s, H)
+
+    # if end_to_end:
+    #     s = end_to_end_align(s, oy - offsets[-1][0])
+
+    # s = crop_vertical(s)
+    print("Complete Image Stitching")
+    return s
+
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
 
@@ -243,5 +276,5 @@ if __name__ == '__main__':
 (4.05, 244.01666666666668), (4.176470588235294, 244.94117647058823), (4.0, 239.16216216216216), (4.057142857142857, 
 252.05714285714285), (4.1875, 242.125), (4.183333333333334, 245.06666666666666), (4.160714285714286, 249.25), (4.078125, 240.046875), (4.69811320754717, 245.0943396226415), (4.111111111111111, 248.88888888888889), (4.104166666666667, 239.125), (3.8666666666666667, 244.35555555555555)]
 
-    s = stitch_all(projs, offsets, True)
+    s = stitch_all_horizontal(projs, offsets, True)
     cv2.imwrite("test_stitch.png", s)
