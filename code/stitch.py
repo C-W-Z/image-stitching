@@ -6,6 +6,11 @@ import utils
 from feature_matching import *
 from Harris_by_ShuoEn import *
 from dlt import dlt
+from enum import IntEnum
+
+class BlendingType(IntEnum):
+    Linear = 0
+    SeamFinding = 1
 
 def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:int=1000):
     N = len(offsets)
@@ -35,9 +40,50 @@ def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:
             totalX += offsets[i][1]
             count += 1
 
-    return (totalY / count, totalX / count)
+    return np.array([totalY / count, totalX / count])
 
-def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:tuple[float,float]):
+def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3]):
+    assert(img_left.shape == img_right.shape)
+    overlap_w = img_left.shape[1]
+    gray_left = cv2.cvtColor(img_left, cv2.COLOR_BGRA2GRAY)
+    gray_right = cv2.cvtColor(img_right, cv2.COLOR_BGRA2GRAY)
+    diff_map = np.abs(gray_left - gray_right)
+    H, W = diff_map.shape
+    assert(W == overlap_w)
+    # map[y, x] = diff_map[y, x] + diff[y, x+1]
+    new_map = diff_map[:, :-1] + diff_map[:, 1:]
+    H, W = new_map.shape
+    assert(W == overlap_w - 1)
+
+    # Dynamic Programming
+    cumulative_map = np.zeros_like(new_map, dtype=np.uint32)
+    cumulative_map[0] = new_map[0]
+    for i in range(1, H):
+        for j in range(W):
+            # Choose the minimum cumulative energy from previous row
+            prev_cumulative_diff = cumulative_map[i-1, max(j-1, 0):min(j+2, W)]
+            cumulative_map[i, j] = new_map[i, j] + np.min(prev_cumulative_diff)
+
+    seam = []
+    min_index = np.argmin(cumulative_map[-1])
+    seam.append(min_index)
+    for i in range(H-2, -1, -1):
+        j = seam[-1]
+        prev_cumulative_diff = cumulative_map[i, max(j-1, 0):min(j+2, W)]
+        min_index = np.argmin(prev_cumulative_diff) + max(j-1, 0)
+        seam.append(min_index)
+    seam = np.array(seam)
+    # seam = np.flip(seam)
+    result = np.zeros_like(img_left)
+    H, W, C = img_left.shape
+    for y in range(H-1, -1, -1):
+        for c in range(C):
+            result[y, :, c] = np.where(np.arange(W) <= seam[y], img_left[y, :, c], img_right[y, :, c])
+        result[y, seam[y]] = [0, 0, 255, 255]
+
+    return result
+
+def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:np.ndarray[float,2], blending:BlendingType):
     """
     Parameters
     img_left: the image should be stitch on the left (4 channels BGRA)
@@ -61,8 +107,8 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         warped_right = cv2.warpAffine(img_right, M, (new_W, new_H))
 
         # copy left to combined image
-        combined = np.zeros((new_H, new_W, 4), dtype=np.uint8)
-        combined[:HL, :WL] = img_left
+        warp_left = np.zeros((new_H, new_W, 4), dtype=np.uint8)
+        warp_left[:HL, :WL] = img_left
 
     else:
         new_H = max(HL, HR) + int(np.ceil(abs(dy)))
@@ -75,42 +121,50 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         # shift the left image and output to combined image
         M = np.float32([[1, 0,  0],
                         [0, 1, -dy]])
-        combined = cv2.warpAffine(img_left, M, (new_W, new_H))
-
-    # copy the right no overlap area
-    combined[:, WL:] = warped_right[:, WL:]
+        warp_left = cv2.warpAffine(img_left, M, (new_W, new_H))
 
     # clear the translucent coords caused by warpAffine (since dy, dx are float)
     warped_right[warped_right[:, :, 3] < 225] = 0
-    combined[combined[:, :, 3] < 225] = 0
+    warp_left[warp_left[:, :, 3] < 225] = 0
+
+    # copy the right no overlap area
+    combined = warp_left.copy()
+    combined[:, WL:] = warped_right[:, WL:]
 
     # the overlap x indices are dx ~ WL
     overlap_x = int(np.floor(dx))
 
-    left_alpha = combined[:, overlap_x:WL, 3] > 127 # img_left coords with alpha > 127
+    left_alpha = warp_left[:, overlap_x:WL, 3] > 127 # img_left coords with alpha > 127
     right_alpha = warped_right[:, overlap_x:WL, 3] > 127 # img_right coords with  alpha > 127
+
+    if blending == BlendingType.Linear:
+        # find the true overlap coords
+        true_overlap = np.where(np.logical_and(left_alpha, right_alpha))
+        translated_true_overlap = (true_overlap[0], overlap_x + true_overlap[1])
+
+        overlap_weights = np.linspace(0, 1, WL - overlap_x)
+        # expand (repeat) overlap_weights to shape (newH, len(overlap_weights), 4)
+        overlap_weights = np.tile(overlap_weights.reshape(1, -1, 1), (new_H, 1, 4))
+
+        # linear blending
+        combined[translated_true_overlap] = (
+            warp_left[translated_true_overlap] * (1 - overlap_weights[true_overlap]) + 
+            warped_right[translated_true_overlap] * overlap_weights[true_overlap]
+        )
+
+    elif blending == BlendingType.SeamFinding:
+        combined[:, overlap_x:WL] = seam_finding(warp_left[:, overlap_x:WL], warped_right[:, overlap_x:WL])
 
     # the coords that inside overlap area but only the img_right has value (alpha > 127)
     right_nolap = np.where(np.logical_and(np.logical_not(left_alpha), right_alpha))
     right_nolap = (right_nolap[0], overlap_x + right_nolap[1])
     combined[right_nolap] = warped_right[right_nolap]
 
-    # find the true overlap coords
-    true_overlap = np.where(np.logical_and(left_alpha, right_alpha))
-    translated_true_overlap = (true_overlap[0], overlap_x + true_overlap[1])
+    # the coords that inside overlap area but only the img_left has value (alpha > 127)
+    left_nolap = np.where(np.logical_and(left_alpha, np.logical_not(right_alpha)))
+    left_nolap = (left_nolap[0], overlap_x + left_nolap[1])
+    combined[left_nolap] = warp_left[left_nolap]
 
-    overlap_weights = np.linspace(0, 1, WL - overlap_x)
-    # expand (repeat) overlap_weights to shape (newH, len(overlap_weights), 4)
-    overlap_weights = np.tile(overlap_weights.reshape(1, -1, 1), (new_H, 1, 4))
-
-    # linear blending
-    combined[translated_true_overlap] = (
-        combined[translated_true_overlap] * (1 - overlap_weights[true_overlap]) + 
-        warped_right[translated_true_overlap] * overlap_weights[true_overlap]
-    )
-
-    combined[combined[:, :, 3] < 226] = 0
-    combined[combined[:, :, 3] > 225, 3] = 255
     return combined
 
 def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
@@ -124,14 +178,21 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
         align[:,x] = shift(align[:,x], (-dy[x], 0), mode='nearest', order=1)
     return align.astype(np.uint8)
 
-def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], end_to_end:bool=False):
+def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], blending:BlendingType, end_to_end:bool=False):
     N = len(offsets)
     assert(N == len(images))
 
     if end_to_end:
-        s = stitch_horizontal(images[-1], images[0], offsets[-1])
-        images[-1] = s[:, :s.shape[0]//2]
-        images[0] = s[:, s.shape[0]//2:]
+        s = stitch_horizontal(images[-1], images[0], offsets[-1], blending)
+        divideX = s.shape[1] - images[-1].shape[1]
+
+        if offsets[-1][0] > 0:
+            dy = int(np.ceil(offsets[-1][0]))
+            images[0] = s[dy:, divideX:]
+        else:
+            images[0] = s[:, divideX:]
+
+        images[-1] = s[:, :divideX]
 
     s = images[0]
     oy, ox = 0, 0
@@ -140,7 +201,7 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
             break
         oy += offset[0]
         ox += offset[1]
-        s = stitch_horizontal(s, images[i + 1], (oy, ox))
+        s = stitch_horizontal(s, images[i + 1], (oy, ox), blending)
 
     if end_to_end:
         s = end_to_end_align(s, oy - offsets[-1][0])
@@ -268,13 +329,7 @@ if __name__ == '__main__':
 
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
 
-    # offsets = [(5.1, 251.0), (3.740740740740741, 242.0), (4.9523809523809526, 245.28571428571428), (4.125, 249.03125), (3.888888888888889, 240.03703703703704), (4.911764705882353, 246.1764705882353), (3.8333333333333335, 247.79166666666666), (5.04, 239.12), (4.0476190476190474, 244.04761904761904), (4.84, 246.88), (4.25, 241.0), (3.076923076923077, 249.92307692307693), (4.916666666666667, 240.95833333333334), (2.8461538461538463, 247.69230769230768), (5.6875, 240.125), (5.833333333333333, 242.94444444444446), (3.857142857142857, 245.0)]
+    offsets = [(4.818640873349946, 247.104335741065), (3.961816606067476, 241.08839616321382), (4.498912266322544, 251.8507334391276), (4.486582040786743, 241.54479026794434), (4.276208567064862, 249.0492944052053), (4.1, 240.975), (4.076923076923077, 244.28205128205127), (4.2105263157894735, 245.0), (4.200587879527699, 239.85669361461294), (4.179313312877309, 252.2882905439897), (4.319418334960938, 241.9544413248698), (4.1521739130434785, 244.52173913043478), (4.61705849387429, 250.04984560879794), (4.203607177734375, 240.68699951171874), (5.067944613370028, 244.1397372159091), (4.8, 247.55), (4.676370143890381, 239.73403453826904), (3.831537882486979, 244.12783014206659)]
 
-    # offsets = [(5.0, 246.3), (4.230769230769231, 239.92307692307693), (3.142857142857143, 250.28571428571428), (3.8, 244.0), (4.428571428571429, 249.85714285714286), (3.75, 241.25), (3.3333333333333335, 243.33333333333334), (4.0, 244.5), (3.3636363636363638, 238.0909090909091), (4.125, 252.875), (4.0, 242.83333333333334), (3.857142857142857, 245.21428571428572), (5.181818181818182, 249.0), (2.8823529411764706, 239.94117647058823), (5.0, 245.92857142857142), (3.4166666666666665, 248.08333333333334), (5.142857142857143, 238.57142857142858), (3.9375, 244.875)]
-
-    offsets = [(4.7631578947368425, 246.92105263157896), (4.056603773584905, 241.1320754716981), (3.9545454545454546, 249.9090909090909), (4.276595744680851, 241.06382978723406), (4.173076923076923, 248.90384615384616), (4.14, 241.04), 
-(4.05, 244.01666666666668), (4.176470588235294, 244.94117647058823), (4.0, 239.16216216216216), (4.057142857142857, 
-252.05714285714285), (4.1875, 242.125), (4.183333333333334, 245.06666666666666), (4.160714285714286, 249.25), (4.078125, 240.046875), (4.69811320754717, 245.0943396226415), (4.111111111111111, 248.88888888888889), (4.104166666666667, 239.125), (3.8666666666666667, 244.35555555555555)]
-
-    s = stitch_all_horizontal(projs, offsets, True)
-    cv2.imwrite("test_stitch.png", s)
+    s = stitch_all_horizontal(projs, offsets, BlendingType.SeamFinding, True)
+    cv2.imwrite("test_seam_red.png", s)

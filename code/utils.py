@@ -55,6 +55,13 @@ def crop_horizontal(image:np.ndarray[np.uint8,3]):
     left, right = non_zero_cols[0], non_zero_cols[-1]
     return image[:, left:right+1]
 
+def crop_transparency(image:np.ndarray[np.uint8,3]):
+    non_zero_rows = np.where(image[:, :, 3].sum(axis=1) > 0)[0]
+    non_zero_cols = np.where(image[:, :, 3].sum(axis=0) > 0)[0]
+    top, bottom = non_zero_rows[0], non_zero_rows[-1]
+    left, right = non_zero_cols[0], non_zero_cols[-1]
+    return image[top:bottom+1, left:right+1]
+
 def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndarray[np.uint8, 3]:
     H, W, *_ = image.shape
     proj = np.zeros((H, W, 4), dtype=np.uint8) # add alpha channel
