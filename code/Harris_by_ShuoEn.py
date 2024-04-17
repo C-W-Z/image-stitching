@@ -31,7 +31,7 @@ def nms(R:np.ndarray[float,2], threshold:float, winSize:int=5):
                 max_index = np.unravel_index(np.argmax(region), region.shape)
                 new_y = y + max_index[0]
                 new_x = x + max_index[1]
-                feature_points = np.concatenate((feature_points, np.array([[new_y, new_x]])), axis=0)
+                feature_points = np.append(feature_points, np.array([[new_y, new_x]]), axis=0)
 
     return feature_points
 

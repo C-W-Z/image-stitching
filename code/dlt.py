@@ -15,14 +15,14 @@ def normalize_points(points:np.ndarray[float,2]) -> tuple[np.ndarray[float,2],np
     #  [x,y]      [y y y]
     #  [x,y]]     [1 1 1]]
     ones = np.ones((1, points.shape[0]))
-    points = np.concatenate((points.T, ones))
+    points = np.append(points.T, ones, axis=0)
 
     points = affine @ points
     points = points[:2].T
 
     return points, affine
 
-def denormalize_H(H:np.ndarray[float,3], affine_src:np.ndarray[float,3], affine_dst:np.ndarray[float,3]) -> np.ndarray[float,3]:
+def denormalize_H(H:np.ndarray[float,2], affine_src:np.ndarray[float,2], affine_dst:np.ndarray[float,2]) -> np.ndarray[float,2]:
     return la.inv(affine_dst) @ H @ affine_src
 
 def dlt(srcpointsXY:np.ndarray[float,2], dstpointsXY:np.ndarray[float,2]):
