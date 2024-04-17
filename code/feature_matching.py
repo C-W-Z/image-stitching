@@ -232,23 +232,13 @@ if __name__ == '__main__':
     utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
     utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
 
-    H = stitch.ransac_homography(matched_keypoints1, matched_keypoints2, 1, 5000)
-    # H, _ = cv2.findHomography(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], cv2.RANSAC, ransacReprojThreshold=0.01, confidence=0.99)
-    # H, _ = cv2.estimateAffinePartial2D(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=0.01 ,confidence=0.99)
-    print(H)
-    # H = [[1, 0, 248.9],
+    M = stitch.ransac_homography(matched_keypoints1, matched_keypoints2, 1, 5000)
+    # M, _ = cv2.findHomography(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], cv2.RANSAC, ransacReprojThreshold=0.01, confidence=0.99)
+    # M, _ = cv2.estimateAffinePartial2D(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=1 ,confidence=0.999)
+    print(M)
+    # M = [[1, 0, 248.9],
     #      [0, 1, 4.17],
     #      [0, 0, 1]]
-    # H = np.array(H)
-    h1, w1, _ = projs[0].shape
-    h2, w2, _ = projs[1].shape
-    new_W = h1 + h2
-    new_H = w1 + w2
-    h = new_H//4
-    w = new_W//4
-    result = np.zeros((new_H, new_W, 4), dtype=np.uint8)
-    result[h:h+h1, w:w+w1] = projs[0]
-    result = cv2.warpPerspective(result, H, (new_W, new_H))
-    # result = cv2.warpAffine(result, H, (new_W, new_H))
-    result[h:h+h2, w:w+w2] = projs[1]
+    # M = np.array(M)
+    result = stitch.stitch_homography(projs[0], projs[1], M)
     cv2.imwrite("test.png", result)

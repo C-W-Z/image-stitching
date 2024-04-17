@@ -181,6 +181,52 @@ def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,
     H = dlt(srcpoints[best_inliners], dstpoints[best_inliners])
     return H
 
+def estimate_transformed_corners(H:int, W:int, M:np.ndarray[float,2]):
+    corners = np.array([[0, 0, 1], [0, H-1, 1], [W-1, 0, 1], [W-1, H-1, 1]], dtype=np.float32)
+    transformed_corners = (M @ corners.T)[:2].T
+    min_x = np.min(transformed_corners[:, 0])
+    max_x = np.max(transformed_corners[:, 0])
+    min_y = np.min(transformed_corners[:, 1])
+    max_y = np.max(transformed_corners[:, 1])
+    return min_x, max_x, min_y, max_y
+
+def stitch_homography(src:np.ndarray[np.uint8,3], dst:np.ndarray[np.uint8,3], M:np.ndarray[float,2]):
+    HS, WS, CS = src.shape
+    HD, WD, CD = dst.shape
+    assert(CS == CD and CS == 4)
+
+    if M.shape == (2, 3): # Affine
+        M = np.append(M, np.array([[0, 0, 1]]), axis=0)
+
+    min_x, max_x, min_y, max_y = estimate_transformed_corners(HS, WS, M)
+
+    origin_W = max(WS, WD)
+    new_W = origin_W
+    left = 0
+    if min_x < 0:
+        left = int(np.ceil(np.abs(min_x)))
+        new_W += left
+    if max_x > origin_W:
+        new_W += int(np.ceil(max_x)) - origin_W
+
+    origin_H = max(HS, HD)
+    new_H = origin_H
+    top = 0
+    if min_y < 0:
+        top = int(np.ceil(np.abs(min_y)))
+        new_H += top
+    if max_y > origin_H:
+        new_H += int(np.ceil(max_y)) - origin_H
+
+    result = np.zeros((new_H, new_W, 4), dtype=np.uint8)
+    result[top:top+HS, left:left+WS] = src
+    result = cv2.warpPerspective(result, M, (new_W, new_H))
+    # result[top:top+HD, left:left+WD] = dst
+    alpha = np.where(dst[:, :, 3] > 127)
+    translated_alpha = (alpha[0] + top, alpha[1] + left)
+    result[translated_alpha] = dst[alpha]
+    return result
+
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
 
