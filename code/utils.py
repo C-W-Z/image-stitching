@@ -99,7 +99,7 @@ def normalize(image:np.ndarray[np.uint8,3]):
     return cv2.normalize(image, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     # return (image - image.mean()) / image.std()
 
-def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]], angles:list[float], filename:str=None):
+def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]] | None, angles:list[float], filename:str=None):
     assert(angles is None or len(keypoints) == len(angles))
     image = image.copy()
 

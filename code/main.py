@@ -1,6 +1,6 @@
 import utils, stitch
 from feature_matching import *
-from Harris_by_ShuoEn import *
+import harris
 
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
@@ -14,7 +14,7 @@ if __name__ == '__main__':
     # projs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(N)]
     print("Complete Cylindrical Projection")
     grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in projs]
-    keypoints = [harris_detector(img, thresRatio=0.001) for img in projs]
+    keypoints = [harris.harris_detector(gray, 0.5, 0.001, 15) for gray in grays]
     print("Complete Harris Detection")
 
     descs = []

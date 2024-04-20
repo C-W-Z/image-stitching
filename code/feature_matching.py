@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from scipy.spatial import cKDTree
 import utils
-from Harris_by_ShuoEn import *
+import harris
 import stitch
 
 def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,2]) -> np.ndarray[float,2]:
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
     # projs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(len(imgs))]
     grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in projs]
-    keypoints = [harris_detector(img, thresRatio=0.05) for img in projs]
+    keypoints = [harris.harris_detector(gray, 0.5, 0.05, 15) for gray in grays]
     print("Complete Harris Detection")
 
     descs = []

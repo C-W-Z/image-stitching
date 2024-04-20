@@ -4,7 +4,7 @@ from scipy.ndimage import shift
 from scipy.spatial.distance import euclidean
 import utils
 from feature_matching import *
-from Harris_by_ShuoEn import *
+import harris
 from dlt import dlt
 from enum import IntEnum
 
@@ -202,7 +202,7 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
     if end_to_end:
         s = end_to_end_align(s, oy - offsets[-1][0])
 
-    s = crop_vertical(s)
+    s = utils.crop_vertical(s)
     print("Complete Image Stitching")
     return s
 
