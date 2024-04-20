@@ -329,4 +329,6 @@ if __name__ == '__main__':
     offsets = np.array(offsets)
 
     s = stitch_all_horizontal(projs, offsets, BlendingType.SeamFinding, True)
-    cv2.imwrite("test_seam_red.png", s)
+    # s = cv2.imread("test_seam_red_crop.png", cv2.IMREAD_UNCHANGED)
+    s = utils.crop_rectangle(s)
+    cv2.imwrite("test_seam_red_crop.png", s)

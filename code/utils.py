@@ -62,6 +62,16 @@ def crop_transparency(image:np.ndarray[np.uint8,3]):
     left, right = non_zero_cols[0], non_zero_cols[-1]
     return image[top:bottom+1, left:right+1]
 
+def crop_rectangle(image:np.ndarray[np.uint8,3]):
+    alpha_channel = image[:,:,3]
+    H, *_ = alpha_channel.shape
+    alpha_row = np.sum(alpha_channel != 0, axis=1)
+    max_row = np.max(alpha_row)
+    top_row = np.argmax(alpha_row == max_row)
+    bottom_row = np.argmax(alpha_row[::-1] == max_row)
+
+    return image[top_row:H-bottom_row]
+
 def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndarray[np.uint8, 3]:
     H, W, *_ = image.shape
     proj = np.zeros((H, W, 4), dtype=np.uint8) # add alpha channel
