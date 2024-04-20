@@ -1,5 +1,5 @@
 import utils, stitch
-from feature_matching import *
+from feature import *
 import harris
 
 if __name__ == '__main__':

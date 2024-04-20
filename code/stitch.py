@@ -3,8 +3,7 @@ import numpy as np
 from scipy.ndimage import shift
 from scipy.spatial.distance import euclidean
 import utils
-from feature_matching import *
-import harris
+from feature import *
 from dlt import dlt
 from enum import IntEnum
 
