@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 from scipy.ndimage import maximum_filter
 import utils
-import feature
 
 # non-maximum suppression
 def nms(R:np.ndarray[float,2], threshold:float, winSize:int):
@@ -51,24 +50,24 @@ def harris_detector(gray:np.ndarray[float,2], sigma:float, thresRatio:float=0.01
     print("Find", len(points), "features")
     return points
 
-def multi_scale_harris(gray:np.ndarray[float,2], sigma:float, thresRatio:float=0.01, winSize:int=15, sigma_scale:float=1):
-    ksize = (5, 5)
-    first = harris_detector(gray, sigma, thresRatio, winSize)
+def multi_scale_harris(grays:np.ndarray[float,2], sigma:float, thresRatio:float=0.01, winSize:int=15, save:bool=False):
+    scales = []
 
-    winSize //= 2
-    gray = cv2.GaussianBlur(gray, ksize, sigmaX=sigma_scale, sigmaY=sigma_scale)
-    H, W = gray.shape
-    gray = cv2.resize(gray, (W // 2, H // 2))
-    second = harris_detector(gray, sigma, thresRatio, winSize)
+    for i, gray in enumerate(grays):
+        points = harris_detector(gray, sigma, thresRatio, winSize)
+        scales.append(points)
+        if save:
+            utils.draw_keypoints(gray, points, None, f"multi_scale_harris_{i}")
+        winSize //= 2
 
-    return first, second
+    return scales
 
 if __name__ == '__main__':
     images, focals = utils.read_images("data\grail\list.txt")
-    img1 = images[3]
+    img1 = images[1]
     grayImg = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    keypoints1, keypoints2 = multi_scale_harris(grayImg, 0.5)
-    keypoints1 = feature.subpixel_refinement(grayImg, keypoints1)
-    keypoints2 = feature.subpixel_refinement(grayImg, keypoints2 * 2)
-    utils.draw_keypoints(img1, keypoints1, None, "test_harris_1")
-    utils.draw_keypoints(img1, keypoints2, None, "test_harris_2")
+
+    sigma_scale = 1
+
+    grays = utils.to_multi_scale(grayImg, 2, 1)
+    keypoints = multi_scale_harris(grays, 0.5, thresRatio=0.01, winSize=20, save=True)

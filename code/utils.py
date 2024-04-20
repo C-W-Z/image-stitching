@@ -99,11 +99,10 @@ def normalize(image:np.ndarray[np.uint8,3]):
     return cv2.normalize(image, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     # return (image - image.mean()) / image.std()
 
-def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]] | None, angles:list[float], filename:str=None):
+def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]] | None, angles:list[float], filename:str=None, arrow_length=10):
     assert(angles is None or len(keypoints) == len(angles))
     image = image.copy()
 
-    arrow_length = 10
     for i in range(len(keypoints)):
         y, x = keypoints[i]
         cv2.circle(image, (int(x), int(y)), 1, (255, 0, 0), -1)
@@ -125,6 +124,16 @@ def gaussian_weights(shape, centerYX, sigma):
     x_indices, y_indices = np.meshgrid(x_indices, y_indices)
 
     return np.exp(-((x_indices - centerYX[0])**2 + (y_indices - centerYX[1])**2) / (2 * sigma**2))
+
+def to_multi_scale(gray:np.ndarray[np.uint8,2], nums:int=2, sigma:float=1):
+    grays = [gray]
+    ksize = (5, 5)
+    for _ in range(1, nums):
+        gray = cv2.GaussianBlur(gray, ksize, sigmaX=sigma, sigmaY=sigma)
+        H, W = gray.shape
+        gray = cv2.resize(gray, (W // 2, H // 2))
+        grays.append(gray)
+    return grays
 
 if __name__ == '__main__':
     imgs, focals = read_images("data\parrington\list.txt")

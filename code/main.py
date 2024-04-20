@@ -9,43 +9,79 @@ if __name__ == '__main__':
     focals = focals[0:2]
     N = len(imgs)
     H, W, _ = imgs[0].shape
+    S = 2
+    # 360
+    full_rotate = False
 
-    projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
-    # projs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(N)]
+    imgs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
+    # imgs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(N)]
     print("Complete Cylindrical Projection")
-    grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in projs]
-    keypoints = [harris.harris_detector(gray, 0.5, 0.001, 15) for gray in grays]
+
+    grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in imgs]
+    multi_grays = [utils.to_multi_scale(g, S, 1) for g in grays]
+
+    multi_keypoints = [harris.multi_scale_harris(g, 0.5, 0.1, 20) for g in multi_grays]
     print("Complete Harris Detection")
 
-    descs = []
-    points = []
-    orientations = []
+    # Descriptor
+    multi_point = []
+    multi_desc = []
+    multi_orien = []
     for i in range(N):
-        keypoints[i] = subpixel_refinement(grays[i], keypoints[i])
-        # utils.draw_keypoints(projs[i], keypoints[i], None, f"test{i}")
-        p, d, o = sift_descriptor(grays[i], keypoints[i])
-        points.append(p)
-        descs.append(d)
-        orientations.append(o)
-        print("Complete Feature Description:", len(p))
-        utils.draw_keypoints(projs[i], p, o, f"test{i}")
+        multi_g = multi_grays[i]
+        multi_p = multi_keypoints[i]
+        assert(S == len(multi_g) and S == len(multi_p))
+        point = []
+        desc = []
+        orien = []
+        for s in range(S):
+            multi_p[s] = subpixel_refinement(multi_g[s], multi_p[s])
+            p, d, o = sift_descriptor(multi_g[s], multi_p[s])
+            point.append(p)
+            desc.append(d)
+            orien.append(o)
+            print(f"Complete {len(p)} feature descriptors in image {i}, scale {s}")
+            utils.draw_keypoints(multi_g[s], p, o, f"test{i}_{s}")
+        multi_point.append(point)
+        multi_desc.append(desc)
+        multi_orien.append(orien)
 
+    # Matching
     # Ms = []
     offsets = []
-    for i in range(N-1):
-        matches = feature_matching(descs[i], descs[(i + 1) % N], 0.85)
-        match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
-        match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
-        matched_keypoints1 = points[i][match_idx1]
-        orientations1 = orientations[i][match_idx1]
-        matched_keypoints2 = points[(i + 1) % N][match_idx2]
-        orientations2 = orientations[(i + 1) % N][match_idx2]
-        utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
-        utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
+    for i in range(N):
+        if not full_rotate and i == N - 1:
+            break
+        desc1 = multi_desc[i]
+        desc2 = multi_desc[(i + 1) % N]
+        point1 = multi_point[i]
+        point2 = multi_point[(i + 1) % N]
+        orien1 = multi_orien[i]
+        orien2 = multi_orien[(i + 1) % N]
+        points1 = []
+        points2 = []
+        oriens1 = []
+        oriens2 = []
+        for s in range(S):
+            matches = feature_matching(desc1[s], desc2[s], 0.85)
+            idx1, idx2 = np.asarray(matches).T
+            m_point1 = point1[s][idx1] * (1 << s)
+            m_point2 = point2[s][idx2] * (1 << s)
+            m_orien1 = orien1[s][idx1]
+            m_orien2 = orien2[s][idx2]
+            m_point1 = subpixel_refinement(grays[i], m_point1)
+            m_point2 = subpixel_refinement(grays[(i + 1) % N], m_point2)
+            points1.extend(m_point1)
+            points2.extend(m_point2)
+            oriens1.extend(m_orien1)
+            oriens2.extend(m_orien2)
+
+        utils.draw_keypoints(imgs[i], points1, oriens1, f"testmatch{i}_left")
+        utils.draw_keypoints(imgs[(i + 1) % N], points2, oriens2, f"testmatch{i+1}_right")
 
         # left image - right image
         # the keypoints are at the right part of left image and left part of right image
-        sample_offsets = matched_keypoints1 - matched_keypoints2
+        sample_offsets = np.array(points1) - np.array(points2)
         offset = stitch.ransac_translation(sample_offsets, 1, 5000)
         offsets.append(offset)
 
@@ -55,7 +91,6 @@ if __name__ == '__main__':
         # Ms.append(M)
 
     print("offsets =", offsets)
-    s = stitch.stitch_horizontal(projs[0], projs[1], offsets[0], stitch.BlendingType.SeamFinding)
-    # s = stitch.stitch_all_horizontal(projs, offsets, True)
-    # s = stitch.stitch_all_homography(projs, Ms)
-    cv2.imwrite("test_1_2.png", s)
+    s = stitch.stitch_all_horizontal(imgs, offsets, stitch.BlendingType.SeamFinding, full_rotate)
+    # s = stitch.stitch_all_homography(imgs, Ms)
+    cv2.imwrite("test.png", s)

@@ -182,7 +182,7 @@ def sift_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]
         for y in range(4):
             patch = gray[x*4:(x+1)*4, y*4:(y+1)*4]
 
-    return (np.array(validpoints), np.array(descriptors), np.array(orientations))
+    return np.array(validpoints), np.array(descriptors), np.array(orientations)
 
 def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarray[np.uint8,3], threshold:float) -> list[tuple[int,int]]:
     # use kd-tree to find two nearest matching points for each decriptors

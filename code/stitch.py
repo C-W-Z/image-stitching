@@ -178,10 +178,9 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
     return align.astype(np.uint8)
 
 def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], blending:BlendingType, end_to_end:bool=False):
-    N = len(offsets)
-    assert(N == len(images))
+    N = len(images)
 
-    if end_to_end:
+    if N == len(offsets):
         s = stitch_horizontal(images[-1], images[0], offsets[-1], blending)
         divideX = s.shape[1] - images[-1].shape[1]
         if offsets[-1][0] > 0:
