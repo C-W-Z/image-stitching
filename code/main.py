@@ -93,7 +93,8 @@ def main(input_file:str, output_dir:str, debug:bool=False):
             offset = stitch.ransac_translation(sample_offsets, ransac_thres, ransac_iter)
             offsets.append(offset)
         elif MOTION == MotionType.AFFINE:
-            M, *_ = cv2.estimateAffinePartial2D(points2[:, ::-1], points1[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
+            # M = stitch.ransac_affine(points2, points1, ransac_thres, ransac_iter)
+            M, _ = cv2.estimateAffinePartial2D(points2[:, ::-1], points1[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
             if debug:
                 print(M)
             Ms.append(M)
@@ -115,8 +116,11 @@ def main(input_file:str, output_dir:str, debug:bool=False):
 
     if MOTION == MotionType.TRANSLATION:
         filename = f"panoramic_{IS360}_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}_{BLEND}_{CROP}.png"
-    else:
+    elif MOTION == MotionType.AFFINE:
+        filename = f"panoramic_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}.png"
+    elif MOTION == MotionType.PERSPECTIVE:
         filename = f"panoramic_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}.png"
+
     cv2.imwrite(os.path.join(output_dir, filename), s)
 
 if __name__ == '__main__':

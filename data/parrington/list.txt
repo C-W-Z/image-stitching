@@ -27,7 +27,7 @@ DESCIPTOR=SIFT # (default SIFT)
 FEATURE_MATCH_THRES = 0.85 # (default 0.8)
 
 # TRANSLATION / AFFINE / PERSPECTIVE motion
-MOTION = PERSPECTIVE # (default TRANSLATION)
+MOTION = AFFINE # (default TRANSLATION)
 
 # the threshold used in RANSAC
 RANSAC_THRES = 1 # (default 1.0)

@@ -206,6 +206,46 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
     print("Complete Image Stitching")
     return s
 
+def ransac_affine(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], threshold:float, iterations:int=1000):
+    assert(srcpoints.shape == dstpoints.shape)
+    N = len(srcpoints)
+    assert(N >= 3)
+    srcpoints = srcpoints[:, ::-1] # [(y,x)] to [(x,y)]
+    dstpoints = dstpoints[:, ::-1] # [(y,x)] to [(x,y)]
+    best_H = None
+    max_inlier_count = 0
+    best_inliers = []
+    for _ in range(iterations):
+        indices = np.random.choice(N, 3, replace=False)
+        inlier_count = 0
+        # H = dlt(srcpoints[indices], dstpoints[indices])
+        H, _ = cv2.estimateAffinePartial2D(srcpoints[indices], dstpoints[indices])
+        if H is None or np.nan in H or np.inf in H:
+            continue
+        # inliers = indices.copy()
+        inliers = np.empty((0,), dtype=np.int32)
+        for j in range(N):
+            # if j in indices:
+            #     continue
+            src = np.append(srcpoints[j], 1)
+            dst = (H @ src.T).T[:2]
+            if euclidean(dstpoints[j], dst) <= threshold:
+                inlier_count += 1
+                inliers = np.append(inliers, j)
+        if max_inlier_count < inlier_count:
+            max_inlier_count = inlier_count
+            best_H = H
+            best_inliers = inliers
+
+    print(f"Find {max_inlier_count} inliers in {N} matches")
+    assert(max_inlier_count >= 3)
+    # print(best_inliers)
+    # best_H = dlt(srcpoints[best_inliers], dstpoints[best_inliers])
+    H, _ = cv2.estimateAffinePartial2D(srcpoints[best_inliers], dstpoints[best_inliers])
+    if not (H is None or np.nan in H or np.inf in H):
+        best_H = H
+    return best_H
+
 def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], threshold:float, iterations:int=1000):
     assert(srcpoints.shape == dstpoints.shape)
     N = len(srcpoints)
