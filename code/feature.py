@@ -4,6 +4,20 @@ from scipy.spatial import cKDTree
 import utils
 import harris
 import stitch
+from enum import IntEnum
+
+class DescriptorType(IntEnum):
+    SIFT = 0
+    MSOP = 1
+    def __str__(self):
+        return self.name.upper()
+
+class MotionType(IntEnum):
+    TRANSLATION = 0
+    AFFINE = 1
+    PERSPECTIVE = 2
+    def __str__(self):
+        return self.name.upper()
 
 def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,2]) -> np.ndarray[float,2]:
     keypoints = keypoints.astype(np.float32)
@@ -192,7 +206,7 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
     return matches
 
 if __name__ == '__main__':
-    imgs, focals = utils.read_images("data\parrington\list.txt")
+    imgs, focals, *_ = utils.read_images("data\parrington\list.txt")
     # H, W, _ = imgs[0].shape
     imgs = imgs[0:2]
     focals = focals[0:2]

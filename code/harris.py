@@ -47,27 +47,27 @@ def harris_detector(gray:np.ndarray[float,2], sigma:float, thresRatio:float=0.01
     localMaxR = maximum_filter(R, size=3, mode='constant', cval=0)
     R[R<localMaxR] = 0
     points = nms(R, thresRatio * np.max(R), winSize)
-    print("Find", len(points), "features")
+    print(f"Find {len(points)} features")
     return points
 
-def multi_scale_harris(grays:np.ndarray[float,2], sigma:float, thresRatio:float=0.01, winSize:int=15, save:bool=False):
+def multi_scale_harris(grays:np.ndarray[float,2], sigma:float, thres_ratio:float=0.01, grid_size:int=20, save:bool=False):
     scales = []
 
     for i, gray in enumerate(grays):
-        points = harris_detector(gray, sigma, thresRatio, winSize)
+        points = harris_detector(gray, sigma, thres_ratio, grid_size)
         scales.append(points)
         if save:
             utils.draw_keypoints(gray, points, None, f"multi_scale_harris_{i}")
-        winSize //= 2
+        grid_size //= 2
 
     return scales
 
 if __name__ == '__main__':
-    images, focals = utils.read_images("data\grail\list.txt")
+    images, focals, *_ = utils.read_images("data\grail\list.txt")
     img1 = images[0]
     grayImg = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
 
     sigma_scale = 1
 
     grays = utils.to_multi_scale(grayImg, 2, 1)
-    keypoints = multi_scale_harris(grays, 0.5, thresRatio=0.01, winSize=20, save=True)
+    keypoints = multi_scale_harris(grays, 0.5, thres_ratio=0.01, grid_size=20, save=True)

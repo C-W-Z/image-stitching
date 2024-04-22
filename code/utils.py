@@ -1,10 +1,26 @@
 import os
 import cv2
 import numpy as np
+from feature import DescriptorType, MotionType
+from stitch import BlendingType
 
 def perror(message:str):
     print(message)
     exit()
+
+def to_bool(value:str, file:str, line:int):
+    if value.capitalize() == 'True' or value == '1':
+        return True
+    elif value.capitalize() == 'False' or value == '0':
+        return False
+    else:
+        perror(f"Error in {file}, line {line+1}: {value} is not a valid bool value")
+
+def to_int(value:str, file:str, line:int):
+    try:
+        return int(value)
+    except ValueError:
+        perror(f"Error in {file}, line {line+1}: {value} is not a valid int value")
 
 def to_float(value:str, file:str, line:int):
     try:
@@ -12,10 +28,41 @@ def to_float(value:str, file:str, line:int):
     except ValueError:
         perror(f"Error in {file}, line {line+1}: {value} is not a valid float value")
 
+def to_DescriptorType(value:str, file:str, line:int):
+    try:
+        return DescriptorType[value]
+    except KeyError:
+        perror(f"Error in {file}, line {line+1}: {value} is not a valid DescriptorType value")
+
+def to_MotionType(value:str, file:str, line:int):
+    try:
+        return MotionType[value]
+    except KeyError:
+        perror(f"Error in {file}, line {line+1}: {value} is not a valid MotionType value")
+
+def to_BlendingType(value:str, file:str, line:int):
+    try:
+        return BlendingType[value]
+    except KeyError:
+        perror(f"Error in {file}, line {line+1}: {value} is not a valid BlendingType value")
+
 def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[float]]:
 
     images = []
     focals = []
+    is360 = False
+    scales = 1
+    scale_sigma = 1
+    harris_sigma = 0.5
+    thres_ratio = 0.1
+    grid_size = 20
+    descriptor = DescriptorType.SIFT
+    feature_match_thres = 0.8
+    motion = MotionType.TRANSLATION
+    ransac_thres = 1
+    ransac_iter = 1000
+    blend = BlendingType.LINEAR
+    crop = True
 
     input_dir = os.path.dirname(image_list)
 
@@ -26,21 +73,74 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
                 if len(line) == 0:
                     continue
 
-                parts = line.split()
-                if len(parts) >= 2:
-                    filename, f, *_ = parts
-                    filepath = os.path.join(input_dir, filename)
-                    print(f"reading file {filepath}")
-                    img = cv2.imread(filepath, cv2.IMREAD_COLOR)
-                    if img is None:
-                        perror(f"Error: Can not read file {filepath}")
-                    images.append(img)
-                    focals.append(to_float(f, image_list, i))
+                if line.startswith('IS360'):
+                    line.replace(' ', '')
+                    is360 = to_bool(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('SCALES'):
+                    line.replace(' ', '')
+                    scales = to_int(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('SCALE_SIGMA'):
+                    line.replace(' ', '')
+                    scale_sigma = to_float(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('HARRIS_SIGMA'):
+                    line.replace(' ', '')
+                    harris_sigma = to_float(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('THRES_RATIO'):
+                    line.replace(' ', '')
+                    thres_ratio = to_float(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('GRID_SIZE'):
+                    line.replace(' ', '')
+                    grid_size = to_int(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('DESCIPTOR'):
+                    line.replace(' ', '')
+                    descriptor = to_DescriptorType(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('FEATURE_MATCH_THRES'):
+                    line.replace(' ', '')
+                    feature_match_thres = to_float(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('MOTION'):
+                    line.replace(' ', '')
+                    motion = to_MotionType(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('RANSAC_THRES'):
+                    line.replace(' ', '')
+                    ransac_thres = to_float(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('RANSAC_ITER'):
+                    line.replace(' ', '')
+                    ransac_iter = to_int(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('BLEND'):
+                    line.replace(' ', '')
+                    blend = to_BlendingType(line.split('=')[1].strip(), image_list, i)
+
+                elif line.startswith('CROP'):
+                    line.replace(' ', '')
+                    crop = to_bool(line.split('=')[1].strip(), image_list, i)
+
                 else:
-                    perror(f"Error in {image_list}, line {i+1}: Not enough arguments")
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        filename, f, *_ = parts
+                        filepath = os.path.join(input_dir, filename)
+                        print(f"reading file {filepath}")
+                        img = cv2.imread(filepath, cv2.IMREAD_COLOR)
+                        if img is None:
+                            perror(f"Error: Can not read file {filepath}")
+                        images.append(img)
+                        focals.append(to_float(f, image_list, i))
+                    else:
+                        perror(f"Error in {image_list}, line {i+1}: Not enough arguments")
 
         assert(len(images) == len(focals))
-        return (images, focals)
+        return images, focals, scales, is360, scale_sigma, harris_sigma, thres_ratio, grid_size, descriptor, feature_match_thres, motion, ransac_thres, ransac_iter, blend, crop
 
     except FileNotFoundError as e:
         perror(f"FileNotFoundError: {e}")
@@ -137,7 +237,18 @@ def to_multi_scale(gray:np.ndarray[np.uint8,2], nums:int=2, sigma:float=1):
         grays.append(gray)
     return grays
 
+def check_and_make_dir(dir:str):
+    if os.path.isdir(dir):
+        return
+    print(f"{dir} is not a directory")
+    try:
+        print(f"Making directory {dir} ...")
+        os.makedirs(dir, exist_ok=True)
+        print(f"Success")
+    except Exception as e:
+        perror(f"Error: {e}")
+
 if __name__ == '__main__':
-    imgs, focals = read_images("data\parrington\list.txt")
+    imgs, focals, *_ = read_images("data\parrington\list.txt")
     proj = cylindrical_projection(imgs[0], focals[0])
     cv2.imwrite("test.jpg", proj)

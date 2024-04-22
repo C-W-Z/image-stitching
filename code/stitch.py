@@ -8,26 +8,28 @@ from dlt import dlt
 from enum import IntEnum
 
 class BlendingType(IntEnum):
-    Linear = 0
-    SeamFinding = 1
+    LINEAR = 0
+    SEAM = 1
+    def __str__(self):
+        return self.name.upper()
 
 def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:int=1000):
     N = len(offsets)
     best_offset = None
-    max_inliner_count = -1
+    max_inlier_count = -1
     for _ in range(iterations):
         i = np.random.randint(0, N)
-        inliner_count = 0
+        inlier_count = 0
         for j in range(N):
             if i == j:
                 continue
             if euclidean(offsets[i], offsets[j]) <= threshold:
-                inliner_count += 1
-        if max_inliner_count < inliner_count:
-            max_inliner_count = inliner_count
+                inlier_count += 1
+        if max_inlier_count < inlier_count:
+            max_inlier_count = inlier_count
             best_offset = offsets[i]
 
-    print(f"Find {max_inliner_count} inliners in {N} matches")
+    print(f"Find {max_inlier_count} inliers in {N} matches")
 
     # calculate average offset
     totalY = 0
@@ -136,7 +138,7 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
     left_alpha = warp_left[:, overlap_x:WL, 3] > 127 # img_left coords with alpha > 127
     right_alpha = warped_right[:, overlap_x:WL, 3] > 127 # img_right coords with  alpha > 127
 
-    if blending == BlendingType.Linear:
+    if blending == BlendingType.LINEAR:
         # find the true overlap coords
         true_overlap = np.where(np.logical_and(left_alpha, right_alpha))
         translated_true_overlap = (true_overlap[0], overlap_x + true_overlap[1])
@@ -151,7 +153,7 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
             warped_right[translated_true_overlap] * overlap_weights[true_overlap]
         )
 
-    elif blending == BlendingType.SeamFinding:
+    elif blending == BlendingType.SEAM:
         combined[:, overlap_x:WL] = seam_finding(warp_left[:, overlap_x:WL], warped_right[:, overlap_x:WL])
 
     # the coords that inside overlap area but only the img_right has value (alpha > 127)
@@ -211,35 +213,35 @@ def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,
     srcpoints = srcpoints[:, ::-1] # [(y,x)] to [(x,y)]
     dstpoints = dstpoints[:, ::-1] # [(y,x)] to [(x,y)]
     best_H = None
-    max_inliner_count = 0
-    best_inliners = []
+    max_inlier_count = 0
+    best_inliers = []
     for _ in range(iterations):
         indices = np.random.choice(N, 4, replace=False)
-        inliner_count = 0
+        inlier_count = 0
         # H = dlt(srcpoints[indices], dstpoints[indices])
         H, _ = cv2.findHomography(srcpoints[indices], dstpoints[indices])
         if H is None or np.nan in H or np.inf in H:
             continue
-        # inliners = indices.copy()
-        inliners = np.empty((0,), dtype=np.int32)
+        # inliers = indices.copy()
+        inliers = np.empty((0,), dtype=np.int32)
         for j in range(N):
             # if j in indices:
             #     continue
             src = np.append(srcpoints[j], 1)
             dst = (H @ src.T).T[:2]
             if euclidean(dstpoints[j], dst) <= threshold:
-                inliner_count += 1
-                inliners = np.append(inliners, j)
-        if max_inliner_count < inliner_count:
-            max_inliner_count = inliner_count
+                inlier_count += 1
+                inliers = np.append(inliers, j)
+        if max_inlier_count < inlier_count:
+            max_inlier_count = inlier_count
             best_H = H
-            best_inliners = inliners
+            best_inliers = inliers
 
-    print(f"Find {max_inliner_count} inliners in {N} matches")
-    assert(max_inliner_count >= 4)
-    # print(best_inliners)
-    # best_H = dlt(srcpoints[best_inliners], dstpoints[best_inliners])
-    H, _ = cv2.findHomography(srcpoints[best_inliners], dstpoints[best_inliners])
+    print(f"Find {max_inlier_count} inliers in {N} matches")
+    assert(max_inlier_count >= 4)
+    # print(best_inliers)
+    # best_H = dlt(srcpoints[best_inliers], dstpoints[best_inliers])
+    H, _ = cv2.findHomography(srcpoints[best_inliers], dstpoints[best_inliers])
     if not (H is None or np.nan in H or np.inf in H):
         best_H = H
     return best_H
@@ -293,11 +295,6 @@ def stitch_homography(src:np.ndarray[np.uint8,3], dst:np.ndarray[np.uint8,3], M:
 def stitch_all_homography(images:np.ndarray[np.uint8,3], Ms:list[np.ndarray[float,3]]):
     N = len(images)
 
-    # if end_to_end:
-    #     s = stitch_horizontal(images[-1], images[0], offsets[-1])
-    #     images[-1] = s[:, :s.shape[0]//2]
-    #     images[0] = s[:, s.shape[0]//2:]
-
     s = images[0]
     H = np.eye(3)
     for i, M in enumerate(Ms):
@@ -305,18 +302,15 @@ def stitch_all_homography(images:np.ndarray[np.uint8,3], Ms:list[np.ndarray[floa
             break
         if M.shape == (2, 3): # Affine
             M = np.append(M, np.array([[0, 0, 1]]), axis=0)
-        H = M @ H
+        H = H @ M
         s = stitch_homography(images[i + 1], s, H)
 
-    # if end_to_end:
-    #     s = end_to_end_align(s, oy - offsets[-1][0])
-
-    # s = crop_vertical(s)
+    s = utils.crop_transparency(s)
     print("Complete Image Stitching")
     return s
 
 if __name__ == '__main__':
-    imgs, focals = utils.read_images("data\parrington\list.txt")
+    imgs, focals, *_ = utils.read_images("data\parrington\list.txt")
 
     N = len(imgs)
     H, W, _ = imgs[0].shape
@@ -326,7 +320,7 @@ if __name__ == '__main__':
     offsets = [(4.818640873349946, 247.104335741065), (3.961816606067476, 241.08839616321382), (4.498912266322544, 251.8507334391276), (4.486582040786743, 241.54479026794434), (4.276208567064862, 249.0492944052053), (4.1, 240.975), (4.076923076923077, 244.28205128205127), (4.2105263157894735, 245.0), (4.200587879527699, 239.85669361461294), (4.179313312877309, 252.2882905439897), (4.319418334960938, 241.9544413248698), (4.1521739130434785, 244.52173913043478), (4.61705849387429, 250.04984560879794), (4.203607177734375, 240.68699951171874), (5.067944613370028, 244.1397372159091), (4.8, 247.55), (4.676370143890381, 239.73403453826904), (3.831537882486979, 244.12783014206659)]
     offsets = np.array(offsets)
 
-    s = stitch_all_horizontal(projs, offsets, BlendingType.SeamFinding, True)
+    s = stitch_all_horizontal(projs, offsets, BlendingType.SEAM, True)
     # s = cv2.imread("test_seam_red_crop.png", cv2.IMREAD_UNCHANGED)
     s = utils.crop_rectangle(s)
     cv2.imwrite("test_seam_red_crop.png", s)

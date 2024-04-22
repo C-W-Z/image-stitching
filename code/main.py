@@ -1,26 +1,25 @@
-import utils, stitch
-from feature import *
-import harris
+import argparse
+import os
+import cv2
+import numpy as np
+import utils, harris, feature, stitch
+from feature import DescriptorType, MotionType
 
-if __name__ == '__main__':
-    imgs, focals = utils.read_images("data\parrington\list.txt")
+def main(input_file:str, output_dir:str, debug:bool=False):
+    imgs, focals, S, IS360, scale_sigma, harris_sigma, thres_ratio, grid_size, descriptor, feature_match_thres, MOTION, ransac_thres, ransac_iter, BLEND, CROP = utils.read_images(input_file)
 
-    imgs = imgs[0:2]
-    focals = focals[0:2]
+    # imgs = imgs[0:2]
+    # focals = focals[0:2]
     N = len(imgs)
-    H, W, _ = imgs[0].shape
-    S = 2
-    # 360
-    full_rotate = False
+    # H, W, _ = imgs[0].shape
 
     imgs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
-    # imgs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(N)]
     print("Complete Cylindrical Projection")
 
     grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in imgs]
-    multi_grays = [utils.to_multi_scale(g, S, 1) for g in grays]
+    multi_grays = [utils.to_multi_scale(g, S, scale_sigma) for g in grays]
 
-    multi_keypoints = [harris.multi_scale_harris(g, 0.5, 0.1, 20) for g in multi_grays]
+    multi_keypoints = [harris.multi_scale_harris(g, harris_sigma, thres_ratio, grid_size) for g in multi_grays]
     print("Complete Harris Detection")
 
     # Descriptor
@@ -35,22 +34,26 @@ if __name__ == '__main__':
         desc = []
         orien = []
         for s in range(S):
-            multi_p[s] = subpixel_refinement(multi_g[s], multi_p[s])
-            p, d, o = sift_descriptor(multi_g[s], multi_p[s])
+            multi_p[s] = feature.subpixel_refinement(multi_g[s], multi_p[s])
+            if descriptor == DescriptorType.SIFT:
+                p, d, o = feature.sift_descriptor(multi_g[s], multi_p[s])
+            elif descriptor == DescriptorType.MSOP:
+                p, d, o = feature.msop_descriptor(multi_g[s], multi_p[s])
             point.append(p)
             desc.append(d)
             orien.append(o)
             print(f"Complete {len(p)} feature descriptors in image {i}, scale {s}")
-            utils.draw_keypoints(multi_g[s], p, o, f"test{i}_{s}")
+            if debug:
+                utils.draw_keypoints(multi_g[s], p, o, os.path.join(output_dir, f"keypoints_{i}_{s}"))
         multi_point.append(point)
         multi_desc.append(desc)
         multi_orien.append(orien)
 
     # Matching
-    # Ms = []
+    Ms = []
     offsets = []
     for i in range(N):
-        if not full_rotate and i == N - 1:
+        if not IS360 and i == N - 1:
             break
         desc1 = multi_desc[i]
         desc2 = multi_desc[(i + 1) % N]
@@ -63,34 +66,64 @@ if __name__ == '__main__':
         oriens1 = []
         oriens2 = []
         for s in range(S):
-            matches = feature_matching(desc1[s], desc2[s], 0.85)
+            matches = feature.feature_matching(desc1[s], desc2[s], feature_match_thres)
             idx1, idx2 = np.asarray(matches).T
             m_point1 = point1[s][idx1] * (1 << s)
             m_point2 = point2[s][idx2] * (1 << s)
             m_orien1 = orien1[s][idx1]
             m_orien2 = orien2[s][idx2]
-            m_point1 = subpixel_refinement(grays[i], m_point1)
-            m_point2 = subpixel_refinement(grays[(i + 1) % N], m_point2)
+            m_point1 = feature.subpixel_refinement(grays[i], m_point1)
+            m_point2 = feature.subpixel_refinement(grays[(i + 1) % N], m_point2)
             points1.extend(m_point1)
             points2.extend(m_point2)
             oriens1.extend(m_orien1)
             oriens2.extend(m_orien2)
 
-        utils.draw_keypoints(imgs[i], points1, oriens1, f"testmatch{i}_left")
-        utils.draw_keypoints(imgs[(i + 1) % N], points2, oriens2, f"testmatch{i+1}_right")
+        if debug:
+            utils.draw_keypoints(imgs[i], points1, oriens1, os.path.join(output_dir, f"match_keypoints_{i}_left"))
+            utils.draw_keypoints(imgs[(i + 1) % N], points2, oriens2, os.path.join(output_dir, f"match_keypoints_{i+1}_right"))
 
-        # left image - right image
-        # the keypoints are at the right part of left image and left part of right image
-        sample_offsets = np.array(points1) - np.array(points2)
-        offset = stitch.ransac_translation(sample_offsets, 1, 5000)
-        offsets.append(offset)
+        points1 = np.array(points1)
+        points2 = np.array(points2)
 
-        # M = stitch.ransac_homography(matched_keypoints2, matched_keypoints1, 1, 5000)
-        # M, _ = cv2.findHomography(matched_keypoints2[:, ::-1], matched_keypoints1[:, ::-1], cv2.RANSAC, ransacReprojThreshold=1, confidence=0.999)
-        # M, _ = cv2.estimateAffinePartial2D(matched_keypoints2[:, ::-1], matched_keypoints1[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=1 ,confidence=0.999)
-        # Ms.append(M)
+        if MOTION == MotionType.TRANSLATION:
+            # left image - right image
+            # the keypoints are at the right part of left image and left part of right image
+            sample_offsets = points1 - points2
+            offset = stitch.ransac_translation(sample_offsets, ransac_thres, ransac_iter)
+            offsets.append(offset)
+        elif MOTION == MotionType.AFFINE:
+            M, *_ = cv2.estimateAffinePartial2D(points2[:, ::-1], points1[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
+            if debug:
+                print(M)
+            Ms.append(M)
+        elif MOTION == MotionType.PERSPECTIVE:
+            M = stitch.ransac_homography(points2, points1, ransac_thres, ransac_iter)
+            # M, _ = cv2.findHomography(points2[:, ::-1], points1[:, ::-1], cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
+            if debug:
+                print(M)
+            Ms.append(M)
 
-    print("offsets =", offsets)
-    s = stitch.stitch_all_horizontal(imgs, offsets, stitch.BlendingType.SeamFinding, full_rotate)
-    # s = stitch.stitch_all_homography(imgs, Ms)
-    cv2.imwrite("test.png", s)
+    if MOTION == MotionType.TRANSLATION:
+        if debug:
+            print("offsets =", np.asarray(offsets).tolist())
+        s = stitch.stitch_all_horizontal(imgs, offsets, BLEND, IS360)
+        if CROP:
+            s = utils.crop_rectangle(s)
+    else:
+        s = stitch.stitch_all_homography(imgs, Ms)
+
+    if MOTION == MotionType.TRANSLATION:
+        filename = f"panoramic_{IS360}_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}_{BLEND}_{CROP}.png"
+    else:
+        filename = f"panoramic_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}.png"
+    cv2.imwrite(os.path.join(output_dir, filename), s)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Read images & arguments from information in <input_file> & output the panoramic image 'panorama_*parameters*.png' to <output_directory>\n")
+    parser.add_argument("input_file", type=str, metavar="<input_file>", help="Input file (.txt) path")
+    parser.add_argument("output_directory", type=str, metavar="<output_directory>", help="Output directory path")
+    parser.add_argument("-d", action="store_true", help="Output feature points and other debug images in <output_directory>")
+    args = parser.parse_args()
+    utils.check_and_make_dir(args.output_directory)
+    main(args.input_file, args.output_directory, args.d)
