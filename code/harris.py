@@ -64,7 +64,7 @@ def multi_scale_harris(grays:np.ndarray[float,2], sigma:float, thresRatio:float=
 
 if __name__ == '__main__':
     images, focals = utils.read_images("data\grail\list.txt")
-    img1 = images[1]
+    img1 = images[0]
     grayImg = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
 
     sigma_scale = 1

@@ -102,10 +102,12 @@ def normalize(image:np.ndarray[np.uint8,3]):
 def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]] | None, angles:list[float], filename:str=None, arrow_length=10):
     assert(angles is None or len(keypoints) == len(angles))
     image = image.copy()
+    if len(image.shape) == 2:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
     for i in range(len(keypoints)):
         y, x = keypoints[i]
-        cv2.circle(image, (int(x), int(y)), 1, (255, 0, 0), -1)
+        cv2.circle(image, (int(x), int(y)), 1, (0, 0, 255), -1)
         if angles is None:
             continue
         end_x = int(x + arrow_length * np.cos(angles[i] * np.pi / 180))
@@ -131,7 +133,7 @@ def to_multi_scale(gray:np.ndarray[np.uint8,2], nums:int=2, sigma:float=1):
     for _ in range(1, nums):
         gray = cv2.GaussianBlur(gray, ksize, sigmaX=sigma, sigmaY=sigma)
         H, W = gray.shape
-        gray = cv2.resize(gray, (W // 2, H // 2))
+        gray = cv2.resize(gray, (W // 2, H // 2), interpolation=cv2.INTER_AREA)
         grays.append(gray)
     return grays
 

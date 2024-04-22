@@ -16,17 +16,9 @@ def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma
     H, W = gray.shape
     newH = H // spacing
     newW = W // spacing
-    result = np.zeros((newH, newW), dtype=np.uint8)
-    blurred = cv2.GaussianBlur(gray, (spacing, spacing), sigmaX=sigma, sigmaY=sigma)
 
-    for i in range(newH):
-        for j in range(newW):
-            row_start = i * spacing
-            row_end = row_start + spacing
-            col_start = j * spacing
-            col_end = col_start + spacing
-            average = np.mean(blurred[row_start:row_end, col_start:col_end])
-            result[i, j] = average.astype(np.uint8)
+    blurred = cv2.GaussianBlur(gray, (spacing, spacing), sigmaX=sigma, sigmaY=sigma)
+    result = cv2.resize(blurred, (newW, newH), interpolation=cv2.INTER_AREA)
 
     return result
 
@@ -202,8 +194,8 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
 if __name__ == '__main__':
     imgs, focals = utils.read_images("data\parrington\list.txt")
     # H, W, _ = imgs[0].shape
-    imgs = imgs[1:3]
-    focals = focals[1:3]
+    imgs = imgs[0:2]
+    focals = focals[0:2]
     N = len(imgs)
     projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
     # projs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(len(imgs))]
@@ -216,14 +208,14 @@ if __name__ == '__main__':
     orientations = []
     for i in range(len(projs)):
         subpixel_keypoints = subpixel_refinement(grays[i], keypoints[i])
-        p, d, o = sift_descriptor(grays[i], subpixel_keypoints)
+        p, d, o = msop_descriptor(grays[i], subpixel_keypoints)
         points.append(p)
         descs.append(d)
         orientations.append(o)
         print("Complete Feature Description:", len(p))
         utils.draw_keypoints(projs[i], keypoints[i], None, f"test__{i}")
 
-    matches = feature_matching(descs[0], descs[1], 0.85)
+    matches = feature_matching(descs[0], descs[1], 0.8)
 
     match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
     match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
@@ -231,8 +223,8 @@ if __name__ == '__main__':
     orientations1 = orientations[0][match_idx1]
     matched_keypoints2 = points[1][match_idx2]
     orientations2 = orientations[1][match_idx2]
-    utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0.jpg")
-    utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1.jpg")
+    utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0_.jpg")
+    utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1_.jpg")
 
     M = stitch.ransac_homography(matched_keypoints1, matched_keypoints2, 1, 5000)
     # M, _ = cv2.findHomography(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], cv2.RANSAC, ransacReprojThreshold=0.01, confidence=0.99)
