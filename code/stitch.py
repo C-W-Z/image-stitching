@@ -42,7 +42,7 @@ def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:
 
     return np.array([totalY / count, totalX / count])
 
-def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3]):
+def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], show_seam:bool=False):
     assert(img_left.shape == img_right.shape)
     overlap_w = img_left.shape[1]
     gray_left = cv2.cvtColor(img_left, cv2.COLOR_BGRA2GRAY)
@@ -79,11 +79,12 @@ def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,
     for y in range(H-1, -1, -1):
         for c in range(C):
             result[y, :, c] = np.where(np.arange(W) <= seam[y], img_left[y, :, c], img_right[y, :, c])
-        result[y, seam[y]] = [0, 0, 255, 255]
+        if show_seam:
+            result[y, seam[y]] = [0, 0, 255, 255]
 
     return result
 
-def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:np.ndarray[float,2], blending:BlendingType):
+def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:np.ndarray[float,2], blending:BlendingType, show_seam:bool=False):
     """
     Parameters
     img_left: the image should be stitch on the left (4 channels BGRA)
@@ -153,7 +154,7 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         )
 
     elif blending == BlendingType.SEAM:
-        combined[:, overlap_x:WL] = seam_finding(warp_left[:, overlap_x:WL], warped_right[:, overlap_x:WL])
+        combined[:, overlap_x:WL] = seam_finding(warp_left[:, overlap_x:WL], warped_right[:, overlap_x:WL], show_seam)
 
     # the coords that inside overlap area but only the img_right has value (alpha > 127)
     right_nolap = np.where(np.logical_and(np.logical_not(left_alpha), right_alpha))
@@ -178,11 +179,11 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
         align[:,x] = shift(align[:,x], (-dy[x], 0), mode='nearest', order=1)
     return align.astype(np.uint8)
 
-def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], blending:BlendingType, end_to_end:bool=False):
+def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], blending:BlendingType, end_to_end:bool=False, show_seam:bool=False):
     N = len(images)
 
     if N == len(offsets):
-        s = stitch_horizontal(images[-1], images[0], offsets[-1], blending)
+        s = stitch_horizontal(images[-1], images[0], offsets[-1], blending, show_seam)
         divideX = s.shape[1] - images[-1].shape[1]
         if offsets[-1][0] > 0:
             offsets[0][0] += offsets[-1][0]
@@ -196,7 +197,7 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
             break
         oy += offset[0]
         ox += offset[1]
-        s = stitch_horizontal(s, images[i + 1], (oy, ox), blending)
+        s = stitch_horizontal(s, images[i + 1], (oy, ox), blending, show_seam)
 
     if end_to_end:
         s = end_to_end_align(s, oy - offsets[-1][0])

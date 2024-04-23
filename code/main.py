@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import utils, harris, feature, stitch
 from feature import DescriptorType, MotionType
+from stitch import BlendingType
 
 def main(input_file:str, output_dir:str, debug:bool=False):
     imgs, focals, S, IS360, scale_sigma, harris_sigma, thres_ratio, grid_size, descriptor, feature_match_thres, MOTION, ransac_thres, ransac_iter, BLEND, CROP = utils.read_images(input_file)
@@ -119,7 +120,13 @@ def main(input_file:str, output_dir:str, debug:bool=False):
     if MOTION == MotionType.TRANSLATION:
         if debug:
             print("offsets =", np.asarray(offsets).tolist())
+            if BLEND == BlendingType.SEAM:
+                tmp = [img.copy() for img in imgs]
+                s = stitch.stitch_all_horizontal(tmp, offsets, BLEND, IS360, True)
+                cv2.imwrite(os.path.join(output_dir, "seam.png"), s)
+
         s = stitch.stitch_all_horizontal(imgs, offsets, BLEND, IS360)
+
         if CROP:
             s = utils.crop_rectangle(s)
     else:
