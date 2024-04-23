@@ -4,7 +4,6 @@ from scipy.ndimage import shift
 from scipy.spatial.distance import euclidean
 import utils
 from feature import *
-from dlt import dlt
 from enum import IntEnum
 
 class BlendingType(IntEnum):
@@ -326,7 +325,9 @@ def stitch_homography(src:np.ndarray[np.uint8,3], dst:np.ndarray[np.uint8,3], M:
     result = np.zeros((new_H, new_W, 4), dtype=np.uint8)
     result[top:top+HS, left:left+WS] = src
     result = cv2.warpPerspective(result, M, (new_W, new_H))
-    # result[top:top+HD, left:left+WD] = dst
+    # clear the translucent coords caused by warpPerspective
+    result[result[:, :, 3] < 225] = 0
+
     alpha = np.where(dst[:, :, 3] > 127)
     translated_alpha = (alpha[0] + top, alpha[1] + left)
     result[translated_alpha] = dst[alpha]
@@ -334,16 +335,33 @@ def stitch_homography(src:np.ndarray[np.uint8,3], dst:np.ndarray[np.uint8,3], M:
 
 def stitch_all_homography(images:np.ndarray[np.uint8,3], Ms:list[np.ndarray[float,3]]):
     N = len(images)
+    mid = N // 2
 
-    s = images[0]
+    # s = images[0]
+    s = images[mid]
     H = np.eye(3)
-    for i, M in enumerate(Ms):
-        if i == N - 1:
-            break
+    for i in range(mid, N-1):
+        M = Ms[i]
         if M.shape == (2, 3): # Affine
             M = np.append(M, np.array([[0, 0, 1]]), axis=0)
         H = H @ M
         s = stitch_homography(images[i + 1], s, H)
+
+    H = np.eye(3)
+    for i in range(mid-1, -1, -1):
+        M = Ms[i]
+        if M.shape == (2, 3): # Affine
+            M = np.append(M, np.array([[0, 0, 1]]), axis=0)
+        H = M
+        s = stitch_homography(images[i], s, H)
+
+    # for i, M in enumerate(Ms):
+    #     if i == N - 1:
+    #         break
+    #     if M.shape == (2, 3): # Affine
+    #         M = np.append(M, np.array([[0, 0, 1]]), axis=0)
+    #     H = H @ M
+    #     s = stitch_homography(images[i + 1], s, H)
 
     s = utils.crop_transparency(s)
     print("Complete Image Stitching")

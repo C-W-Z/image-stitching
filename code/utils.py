@@ -199,7 +199,7 @@ def normalize(image:np.ndarray[np.uint8,3]):
     return cv2.normalize(image, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     # return (image - image.mean()) / image.std()
 
-def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]] | None, angles:list[float], filename:str=None, arrow_length=10):
+def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]], angles:list[float] | None, filename:str=None, arrow_length=10):
     assert(angles is None or len(keypoints) == len(angles))
     image = image.copy()
     if len(image.shape) == 2:
@@ -214,7 +214,32 @@ def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]] 
         end_y = int(y - arrow_length * np.sin(angles[i] * np.pi / 180))
         cv2.arrowedLine(image, (int(x), int(y)), (end_x, end_y), (0, 0, 255), 1)
 
-    cv2.imwrite(f"{filename}.jpg", image)
+    if not filename is None:
+        cv2.imwrite(f"{filename}.jpg", image)
+
+    return image
+
+def draw_matches(img_left:np.ndarray[np.uint8,3], point_left:list[tuple[int,int]], img_right:np.ndarray[np.uint8,3], point_right:list[tuple[int,int]], filename:str=None):
+    HL, WL, CL = img_left.shape
+    HR, WR, CR = img_right.shape
+    assert(CL == CR and CR == 4)
+    N = len(point_left)
+    assert(N == len(point_right))
+    image = np.zeros((max(HL,HR), WL+WR, 4), dtype=np.uint8)
+    image[:HL, :WL] = img_left
+    image[:HR, WL:WL+WR] = img_right
+
+    for i in range(N):
+        yl, xl = point_left[i]
+        yl, xl = int(yl), int(xl)
+        yr, xr = point_right[i]
+        yr, xr = int(yr), WL + int(xr)
+        cv2.line(image, (xl, yl), (xr, yr), (0, 0, 255), 1)
+
+    if not filename is None:
+        cv2.imwrite(f"{filename}.jpg", image)
+
+    return image
 
 def gaussian_weights(shape, centerYX, sigma):
     """

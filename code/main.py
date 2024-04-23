@@ -20,19 +20,23 @@ def main(input_file:str, output_dir:str, debug:bool=False):
     multi_grays = [utils.to_multi_scale(g, S, scale_sigma) for g in grays]
 
     multi_keypoints = [harris.multi_scale_harris(g, harris_sigma, thres_ratio, grid_size) for g in multi_grays]
+    if debug:
+        for i in range(N):
+            for s in range(S):
+                utils.draw_keypoints(multi_grays[i][s], multi_keypoints[i][s], None, os.path.join(output_dir, f"harris_{i}_{s}"))
     print("Complete Harris Detection")
 
     # Descriptor
     multi_point = []
     multi_desc = []
-    multi_orien = []
+    # multi_orien = []
     for i in range(N):
         multi_g = multi_grays[i]
         multi_p = multi_keypoints[i]
         assert(S == len(multi_g) and S == len(multi_p))
         point = []
         desc = []
-        orien = []
+        # orien = []
         for s in range(S):
             multi_p[s] = feature.subpixel_refinement(multi_g[s], multi_p[s])
             if descriptor == DescriptorType.SIFT:
@@ -41,47 +45,48 @@ def main(input_file:str, output_dir:str, debug:bool=False):
                 p, d, o = feature.msop_descriptor(multi_g[s], multi_p[s])
             point.append(p)
             desc.append(d)
-            orien.append(o)
+            # orien.append(o)
             print(f"Complete {len(p)} feature descriptors in image {i}, scale {s}")
-            if debug:
-                utils.draw_keypoints(multi_g[s], p, o, os.path.join(output_dir, f"keypoints_{i}_{s}"))
+            # if debug:
+            #     utils.draw_keypoints(multi_g[s], p, o, os.path.join(output_dir, f"keypoints_{i}_{s}"))
         multi_point.append(point)
         multi_desc.append(desc)
-        multi_orien.append(orien)
+        # multi_orien.append(orien)
 
     # Matching
     Ms = []
     offsets = []
     for i in range(N):
-        if not IS360 and i == N - 1:
+        if i == N - 1 and (not IS360 or MOTION != MotionType.TRANSLATION):
             break
         desc1 = multi_desc[i]
         desc2 = multi_desc[(i + 1) % N]
         point1 = multi_point[i]
         point2 = multi_point[(i + 1) % N]
-        orien1 = multi_orien[i]
-        orien2 = multi_orien[(i + 1) % N]
+        # orien1 = multi_orien[i]
+        # orien2 = multi_orien[(i + 1) % N]
         points1 = []
         points2 = []
-        oriens1 = []
-        oriens2 = []
+        # oriens1 = []
+        # oriens2 = []
         for s in range(S):
             matches = feature.feature_matching(desc1[s], desc2[s], feature_match_thres)
             idx1, idx2 = np.asarray(matches).T
             m_point1 = point1[s][idx1] * (1 << s)
             m_point2 = point2[s][idx2] * (1 << s)
-            m_orien1 = orien1[s][idx1]
-            m_orien2 = orien2[s][idx2]
+            # m_orien1 = orien1[s][idx1]
+            # m_orien2 = orien2[s][idx2]
             m_point1 = feature.subpixel_refinement(grays[i], m_point1)
             m_point2 = feature.subpixel_refinement(grays[(i + 1) % N], m_point2)
             points1.extend(m_point1)
             points2.extend(m_point2)
-            oriens1.extend(m_orien1)
-            oriens2.extend(m_orien2)
+            # oriens1.extend(m_orien1)
+            # oriens2.extend(m_orien2)
 
         if debug:
-            utils.draw_keypoints(imgs[i], points1, oriens1, os.path.join(output_dir, f"match_keypoints_{i}_left"))
-            utils.draw_keypoints(imgs[(i + 1) % N], points2, oriens2, os.path.join(output_dir, f"match_keypoints_{i+1}_right"))
+            utils.draw_matches(imgs[i], points1, imgs[(i + 1) % N], points2, os.path.join(output_dir, f"match_keypoints_{i}_{(i + 1) % N}"))
+            # utils.draw_keypoints(imgs[i], points1, oriens1, os.path.join(output_dir, f"match_keypoints_{i}_left"))
+            # utils.draw_keypoints(imgs[(i + 1) % N], points2, oriens2, os.path.join(output_dir, f"match_keypoints_{i+1}_right"))
 
         points1 = np.array(points1)
         points2 = np.array(points2)
@@ -94,12 +99,18 @@ def main(input_file:str, output_dir:str, debug:bool=False):
             offsets.append(offset)
         elif MOTION == MotionType.AFFINE:
             # M = stitch.ransac_affine(points2, points1, ransac_thres, ransac_iter)
-            M, _ = cv2.estimateAffinePartial2D(points2[:, ::-1], points1[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
+            if i < N // 2:
+                M, _ = cv2.estimateAffinePartial2D(points1[:, ::-1], points2[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
+            else:
+                M, _ = cv2.estimateAffinePartial2D(points2[:, ::-1], points1[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
             if debug:
                 print(M)
             Ms.append(M)
         elif MOTION == MotionType.PERSPECTIVE:
-            M = stitch.ransac_homography(points2, points1, ransac_thres, ransac_iter)
+            if i < N // 2:
+                M = stitch.ransac_homography(points1, points2, ransac_thres, ransac_iter)
+            else:
+                M = stitch.ransac_homography(points2, points1, ransac_thres, ransac_iter)
             # M, _ = cv2.findHomography(points2[:, ::-1], points1[:, ::-1], cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
             if debug:
                 print(M)
