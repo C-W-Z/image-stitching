@@ -62,7 +62,7 @@ def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,
     assert(W == overlap_w - 1)
 
     # Dynamic Programming
-    cumulative_map = np.zeros_like(new_map, dtype=np.uint32)
+    cumulative_map = np.zeros_like(new_map, dtype=np.float32)
     cumulative_map[0] = new_map[0]
     for i in range(1, H):
         for j in range(W):
@@ -90,7 +90,7 @@ def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,
 
     return result
 
-def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:np.ndarray[float,2], blending:BlendingType, show_seam:bool=False):
+def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:np.ndarray[float,2], blending:BlendingType, auto_exposure:bool=False, show_seam:bool=False):
     """
     Parameters
     img_left: the image should be stitch on the left (4 channels BGRA)
@@ -111,7 +111,7 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         # shift the right image
         M = np.float32([[1, 0, dx],
                         [0, 1, dy]])
-        warped_right = cv2.warpAffine(img_right, M, (new_W, new_H))
+        warp_right = cv2.warpAffine(img_right, M, (new_W, new_H))
 
         # copy left to combined image
         warp_left = np.zeros((new_H, new_W, 4), dtype=np.uint8)
@@ -123,7 +123,7 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         # shift the right image
         M = np.float32([[1, 0, dx],
                         [0, 1,  0]])
-        warped_right = cv2.warpAffine(img_right, M, (new_W, new_H))
+        warp_right = cv2.warpAffine(img_right, M, (new_W, new_H))
 
         # shift the left image and output to combined image
         M = np.float32([[1, 0,  0],
@@ -131,24 +131,38 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         warp_left = cv2.warpAffine(img_left, M, (new_W, new_H))
 
     # clear the translucent coords caused by warpAffine (since dy, dx are float)
-    warped_right[warped_right[:, :, 3] < 225] = 0
+    warp_right[warp_right[:, :, 3] < 225] = 0
     warp_left[warp_left[:, :, 3] < 225] = 0
-
-    # copy the right no overlap area
-    combined = warp_left.copy()
-    combined[:, WL:] = warped_right[:, WL:]
 
     # the overlap x indices are dx ~ WL
     overlap_x = int(np.floor(dx))
 
     left_alpha = warp_left[:, overlap_x:WL, 3] > 127 # img_left coords with alpha > 127
-    right_alpha = warped_right[:, overlap_x:WL, 3] > 127 # img_right coords with  alpha > 127
+    right_alpha = warp_right[:, overlap_x:WL, 3] > 127 # img_right coords with  alpha > 127
+
+    # find the true overlap coords
+    true_overlap = np.where(np.logical_and(left_alpha, right_alpha))
+    translated_true_overlap = (true_overlap[0], overlap_x + true_overlap[1])
+
+    # auto exposure
+    if auto_exposure:
+        gray_left = cv2.cvtColor(warp_left, cv2.COLOR_BGRA2GRAY).astype(np.float32) + 1e-6
+        gray_right = cv2.cvtColor(warp_right, cv2.COLOR_BGRA2GRAY).astype(np.float32) + 1e-6
+        left_mean = np.mean(gray_left[translated_true_overlap])
+        right_mean = np.mean(gray_right[translated_true_overlap])
+        mean_exposure = (left_mean + right_mean) / 2
+        left_diff = left_mean - mean_exposure
+        right_diff = right_mean - mean_exposure
+        warp_left = warp_left.astype(np.float32)
+        warp_right = warp_right.astype(np.float32)
+        warp_left[:,:,:3] -= left_diff
+        warp_right[:,:,:3] -= right_diff
+
+    # copy the right no overlap area
+    combined = np.copy(warp_left)
+    combined[:, WL:] = warp_right[:, WL:]
 
     if blending == BlendingType.LINEAR:
-        # find the true overlap coords
-        true_overlap = np.where(np.logical_and(left_alpha, right_alpha))
-        translated_true_overlap = (true_overlap[0], overlap_x + true_overlap[1])
-
         overlap_weights = np.linspace(0, 1, WL - overlap_x)
         # expand (repeat) overlap_weights to shape (newH, len(overlap_weights), 4)
         overlap_weights = np.tile(overlap_weights.reshape(1, -1, 1), (new_H, 1, 4))
@@ -156,16 +170,16 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         # linear blending
         combined[translated_true_overlap] = (
             warp_left[translated_true_overlap] * (1 - overlap_weights[true_overlap]) + 
-            warped_right[translated_true_overlap] * overlap_weights[true_overlap]
+            warp_right[translated_true_overlap] * overlap_weights[true_overlap]
         )
 
     elif blending == BlendingType.SEAM:
-        combined[:, overlap_x:WL] = seam_finding(warp_left[:, overlap_x:WL], warped_right[:, overlap_x:WL], show_seam)
+        combined[:, overlap_x:WL] = seam_finding(warp_left[:, overlap_x:WL], warp_right[:, overlap_x:WL], show_seam)
 
     # the coords that inside overlap area but only the img_right has value (alpha > 127)
     right_nolap = np.where(np.logical_and(np.logical_not(left_alpha), right_alpha))
     right_nolap = (right_nolap[0], overlap_x + right_nolap[1])
-    combined[right_nolap] = warped_right[right_nolap]
+    combined[right_nolap] = warp_right[right_nolap]
 
     # the coords that inside overlap area but only the img_left has value (alpha > 127)
     left_nolap = np.where(np.logical_and(left_alpha, np.logical_not(right_alpha)))
@@ -185,11 +199,11 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
         align[:,x] = shift(align[:,x], (-dy[x], 0), mode='nearest', order=1)
     return align.astype(np.uint8)
 
-def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], blending:BlendingType, end_to_end:bool=False, show_seam:bool=False):
+def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], blending:BlendingType, end_to_end:bool=False, auto_exposure:bool=False, show_seam:bool=False):
     N = len(images)
 
     if N == len(offsets):
-        s = stitch_horizontal(images[-1], images[0], offsets[-1], blending, show_seam)
+        s = stitch_horizontal(images[-1], images[0], offsets[-1], blending, auto_exposure, show_seam)
         divideX = s.shape[1] - images[-1].shape[1]
         if offsets[-1][0] > 0:
             offsets[0][0] += offsets[-1][0]
@@ -203,14 +217,15 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
             break
         oy += offset[0]
         ox += offset[1]
-        s = stitch_horizontal(s, images[i + 1], (oy, ox), blending, show_seam)
+        s = stitch_horizontal(s, images[i + 1], (oy, ox), blending, auto_exposure, show_seam)
+
+    s[:,:,:3] = utils.normalize(s[:,:,:3]) * 255
 
     if end_to_end:
         s = end_to_end_align(s, oy - offsets[-1][0])
 
     s = utils.crop_vertical(s)
-    print("Complete Image Stitching")
-    return s
+    return s.astype(np.uint8)
 
 def ransac_affine(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], threshold:float, iterations:int=1000):
     assert(srcpoints.shape == dstpoints.shape)
@@ -373,7 +388,6 @@ def stitch_all_homography(images:np.ndarray[np.uint8,3], Ms:list[np.ndarray[floa
     #     s = stitch_homography(images[i + 1], s, H)
 
     s = utils.crop_transparency(s)
-    print("Complete Image Stitching")
     return s
 
 if __name__ == '__main__':

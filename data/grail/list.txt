@@ -22,10 +22,10 @@ DESCIPTOR = MSOP # (default SIFT)
 
 # threshold used in feature matching 
 # distance to the closest feature should < FEATURE_MATCH_THRES * distance to the second closest feature
-FEATURE_MATCH_THRES = 0.6 # (default 0.8)
+FEATURE_MATCH_THRES = 0.8 # (default 0.8)
 
 # TRANSLATION / AFFINE / PERSPECTIVE motion
-MOTION = AFFINE # (default TRANSLATION)
+MOTION = TRANSLATION # (default TRANSLATION)
 
 # the threshold used in RANSAC
 RANSAC_THRES = 2 # (default 1.0)
@@ -34,10 +34,13 @@ RANSAC_THRES = 2 # (default 1.0)
 RANSAC_ITER = 5000 # (default 1000)
 
 # SEAM (seam finding) or LINEAR (linear blending)
-BLEND=SEAM # (default LINEAR)
+BLEND = SEAM # (default LINEAR)
+
+# auto adjust the brightness between multiple images
+AUTO_EXPOSURE = True # (default False)
 
 # Crop panorama to rectangle size
-CROP=False # (default True)
+CROP = True # (default True)
 
 # image     focal
 grail17.jpg 629.796

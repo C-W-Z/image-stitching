@@ -62,6 +62,7 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
     ransac_thres = 1
     ransac_iter = 1000
     blend = BlendingType.LINEAR
+    auto_exposure = False
     crop = True
 
     input_dir = os.path.dirname(image_list)
@@ -121,6 +122,10 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
                     line.replace(' ', '')
                     blend = to_BlendingType(line.split('=')[1].strip(), image_list, i)
 
+                elif line.startswith('AUTO_EXPOSURE'):
+                    line.replace(' ', '')
+                    crop = to_bool(line.split('=')[1].strip(), image_list, i)
+
                 elif line.startswith('CROP'):
                     line.replace(' ', '')
                     crop = to_bool(line.split('=')[1].strip(), image_list, i)
@@ -140,7 +145,7 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
                         perror(f"Error in {image_list}, line {i+1}: Not enough arguments")
 
         assert(len(images) == len(focals))
-        return images, focals, scales, is360, scale_sigma, harris_sigma, thres_ratio, grid_size, descriptor, feature_match_thres, motion, ransac_thres, ransac_iter, blend, crop
+        return images, focals, scales, is360, scale_sigma, harris_sigma, thres_ratio, grid_size, descriptor, feature_match_thres, motion, ransac_thres, ransac_iter, blend, auto_exposure, crop
 
     except FileNotFoundError as e:
         perror(f"FileNotFoundError: {e}")
@@ -201,7 +206,7 @@ def normalize(image:np.ndarray[np.uint8,3]):
 
 def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]], angles:list[float] | None, filename:str=None, arrow_length=10):
     assert(angles is None or len(keypoints) == len(angles))
-    image = image.copy()
+    image = np.copy(image)
     if len(image.shape) == 2:
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
@@ -279,8 +284,3 @@ def check_and_make_dir(dir:str):
         print(f"Success")
     except Exception as e:
         perror(f"Error: {e}")
-
-if __name__ == '__main__':
-    imgs, focals, *_ = read_images("data\parrington\list.txt")
-    proj = cylindrical_projection(imgs[0], focals[0])
-    cv2.imwrite("test.jpg", proj)

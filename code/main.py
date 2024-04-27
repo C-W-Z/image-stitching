@@ -7,7 +7,7 @@ from feature import DescriptorType, MotionType
 from stitch import BlendingType
 
 def main(input_file:str, output_dir:str, debug:bool=False):
-    imgs, focals, S, IS360, scale_sigma, harris_sigma, thres_ratio, grid_size, descriptor, feature_match_thres, MOTION, ransac_thres, ransac_iter, BLEND, CROP = utils.read_images(input_file)
+    imgs, focals, S, IS360, scale_sigma, harris_sigma, thres_ratio, grid_size, descriptor, feature_match_thres, MOTION, ransac_thres, ransac_iter, BLEND, AUTO_EXP, CROP = utils.read_images(input_file)
 
     # imgs = imgs[0:2]
     # focals = focals[0:2]
@@ -121,18 +121,21 @@ def main(input_file:str, output_dir:str, debug:bool=False):
 
     if MOTION == MotionType.TRANSLATION:
         if debug:
-            print("offsets =", np.asarray(offsets).tolist())
+            offset = np.asarray(offsets)
+            print("offsets =", offset.tolist())
             if BLEND == BlendingType.SEAM:
-                tmp = [img.copy() for img in imgs]
-                s = stitch.stitch_all_horizontal(tmp, offsets, BLEND, IS360, True)
+                tmp = [np.copy(img) for img in imgs]
+                s = stitch.stitch_all_horizontal(tmp, np.copy(offsets), BLEND, IS360, AUTO_EXP, True)
                 cv2.imwrite(os.path.join(output_dir, "seam.png"), s)
 
-        s = stitch.stitch_all_horizontal(imgs, offsets, BLEND, IS360)
+        s = stitch.stitch_all_horizontal(imgs, offsets, BLEND, IS360, AUTO_EXP)
 
         if CROP:
             s = utils.crop_rectangle(s)
     else:
         s = stitch.stitch_all_homography(imgs, Ms)
+
+    print("Complete Image Stitching")
 
     if MOTION == MotionType.TRANSLATION:
         filename = f"panoramic_{IS360}_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}_{BLEND}_{CROP}.png"
@@ -141,7 +144,9 @@ def main(input_file:str, output_dir:str, debug:bool=False):
     elif MOTION == MotionType.PERSPECTIVE:
         filename = f"panoramic_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}.png"
 
-    cv2.imwrite(os.path.join(output_dir, filename), s)
+    filename = os.path.join(output_dir, filename)
+    cv2.imwrite(filename, s)
+    print(f"Save panorama into {filename}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Read images & arguments from information in <input_file> & output the panoramic image 'panorama_*parameters*.png' to <output_directory>\n")
