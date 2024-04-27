@@ -15,6 +15,7 @@ def main(input_file:str, output_dir:str, debug:bool=False):
     # H, W, _ = imgs[0].shape
 
     imgs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
+    # imgs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(N)]
     print("Complete Cylindrical Projection")
 
     grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in imgs]
@@ -84,19 +85,16 @@ def main(input_file:str, output_dir:str, debug:bool=False):
             # oriens1.extend(m_orien1)
             # oriens2.extend(m_orien2)
 
-        if debug:
-            utils.draw_matches(imgs[i], points1, imgs[(i + 1) % N], points2, os.path.join(output_dir, f"match_keypoints_{i}_{(i + 1) % N}"))
-            # utils.draw_keypoints(imgs[i], points1, oriens1, os.path.join(output_dir, f"match_keypoints_{i}_left"))
-            # utils.draw_keypoints(imgs[(i + 1) % N], points2, oriens2, os.path.join(output_dir, f"match_keypoints_{i+1}_right"))
-
         points1 = np.array(points1)
         points2 = np.array(points2)
+        inliers = []
+        outliers = []
 
         if MOTION == MotionType.TRANSLATION:
             # left image - right image
             # the keypoints are at the right part of left image and left part of right image
             sample_offsets = points1 - points2
-            offset = stitch.ransac_translation(sample_offsets, ransac_thres, ransac_iter)
+            offset, inliers, outliers = stitch.ransac_translation(sample_offsets, ransac_thres, ransac_iter)
             offsets.append(offset)
         elif MOTION == MotionType.AFFINE:
             # M = stitch.ransac_affine(points2, points1, ransac_thres, ransac_iter)
@@ -109,13 +107,17 @@ def main(input_file:str, output_dir:str, debug:bool=False):
             Ms.append(M)
         elif MOTION == MotionType.PERSPECTIVE:
             if i < N // 2:
-                M = stitch.ransac_homography(points1, points2, ransac_thres, ransac_iter)
+                M, inliers, outliers = stitch.ransac_homography(points1, points2, ransac_thres, ransac_iter)
+                # M, _ = cv2.findHomography(points1[:, ::-1], points2[:, ::-1], cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.9999)
             else:
-                M = stitch.ransac_homography(points2, points1, ransac_thres, ransac_iter)
-            # M, _ = cv2.findHomography(points2[:, ::-1], points1[:, ::-1], cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.999)
+                M, inliers, outliers = stitch.ransac_homography(points2, points1, ransac_thres, ransac_iter)
+                # M, _ = cv2.findHomography(points2[:, ::-1], points1[:, ::-1], cv2.RANSAC, ransacReprojThreshold=ransac_thres, confidence=0.9999)
             if debug:
                 print(M)
             Ms.append(M)
+
+        if debug:
+            utils.draw_matches(imgs[i], points1, imgs[(i + 1) % N], points2, inliers, outliers, os.path.join(output_dir, f"match_keypoints_{i}_{(i + 1) % N}"))
 
     if MOTION == MotionType.TRANSLATION:
         if debug:

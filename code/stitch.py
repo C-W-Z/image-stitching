@@ -16,8 +16,9 @@ def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:
     N = len(offsets)
     best_offset = None
     max_inlier_count = -1
-    for _ in range(iterations):
-        i = np.random.randint(0, N)
+    for i in range(min(N, iterations)):
+        if iterations < N:
+            i = np.random.randint(0, N)
         inlier_count = 0
         for j in range(N):
             if i == j:
@@ -34,13 +35,18 @@ def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:
     totalY = 0
     totalX = 0
     count = 0
+    inliers = []
+    outliers = []
     for i in range(N):
         if euclidean(best_offset, offsets[i]) <= threshold:
             totalY += offsets[i][0]
             totalX += offsets[i][1]
             count += 1
+            inliers.append(i)
+        else:
+            outliers.append(i)
 
-    return np.array([totalY / count, totalX / count])
+    return np.array([totalY / count, totalX / count]), inliers, outliers
 
 def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], show_seam:bool=False):
     assert(img_left.shape == img_right.shape)
@@ -277,6 +283,8 @@ def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,
             best_H = H
             best_inliers = inliers
 
+    best_outliers = list(set(range(N)) - set(best_inliers))
+
     print(f"Find {max_inlier_count} inliers in {N} matches")
     assert(max_inlier_count >= 4)
     # print(best_inliers)
@@ -284,7 +292,7 @@ def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,
     H, _ = cv2.findHomography(srcpoints[best_inliers], dstpoints[best_inliers])
     if not (H is None or np.nan in H or np.inf in H):
         best_H = H
-    return best_H
+    return best_H, best_inliers, best_outliers
 
 def estimate_transformed_corners(H:int, W:int, M:np.ndarray[float,2]):
     corners = np.array([[0, 0, 1], [0, H-1, 1], [W-1, 0, 1], [W-1, H-1, 1]], dtype=np.float32)

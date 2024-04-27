@@ -219,7 +219,7 @@ def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]],
 
     return image
 
-def draw_matches(img_left:np.ndarray[np.uint8,3], point_left:list[tuple[int,int]], img_right:np.ndarray[np.uint8,3], point_right:list[tuple[int,int]], filename:str=None):
+def draw_matches(img_left:np.ndarray[np.uint8,3], point_left:list[tuple[int,int]], img_right:np.ndarray[np.uint8,3], point_right:list[tuple[int,int]], inliers:list[int]=[], outliers:list[int]=[], filename:str=None):
     HL, WL, CL = img_left.shape
     HR, WR, CR = img_right.shape
     assert(CL == CR and CR == 4)
@@ -229,12 +229,19 @@ def draw_matches(img_left:np.ndarray[np.uint8,3], point_left:list[tuple[int,int]
     image[:HL, :WL] = img_left
     image[:HR, WL:WL+WR] = img_right
 
-    for i in range(N):
-        yl, xl = point_left[i]
-        yl, xl = int(yl), int(xl)
-        yr, xr = point_right[i]
-        yr, xr = int(yr), WL + int(xr)
-        cv2.line(image, (xl, yl), (xr, yr), (0, 0, 255), 1)
+    def draw_colors(indices:list[int], color:tuple[int,int,int]):
+        for i in indices:
+            yl, xl = point_left[i]
+            yl, xl = int(yl), int(xl)
+            yr, xr = point_right[i]
+            yr, xr = int(yr), WL + int(xr)
+            cv2.line(image, (xl, yl), (xr, yr), color, 1)
+
+    if len(inliers) == 0 or len(outliers) == 0:
+        draw_colors(range(N), (0, 0, 255))
+    else:
+        draw_colors(outliers, (0, 0, 255))
+        draw_colors(inliers, (0, 255, 0))
 
     if not filename is None:
         cv2.imwrite(f"{filename}.jpg", image)

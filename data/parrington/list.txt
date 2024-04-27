@@ -7,8 +7,6 @@ SCALES = 2 # (default 1)
 # sigma for Guassian blur when multi-scaling the photos
 SCALE_SIGMA = 1 # (default 1.0)
 
-# Harris dectector parameters
-
 # sigma for Guassian blur in harris dectector
 HARRIS_SIGMA = 0.5 # (default 0.5)
 

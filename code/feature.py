@@ -240,7 +240,7 @@ if __name__ == '__main__':
     utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0_.jpg")
     utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1_.jpg")
 
-    M = stitch.ransac_homography(matched_keypoints1, matched_keypoints2, 1, 5000)
+    M, *_ = stitch.ransac_homography(matched_keypoints1, matched_keypoints2, 1, 5000)
     # M, _ = cv2.findHomography(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], cv2.RANSAC, ransacReprojThreshold=0.01, confidence=0.99)
     # M, _ = cv2.estimateAffinePartial2D(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=1 ,confidence=0.999)
     print(M)
