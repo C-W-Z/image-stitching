@@ -138,7 +138,7 @@ def main(input_file:str, output_dir:str, debug:bool=False):
     print("Complete Image Stitching")
 
     if MOTION == MotionType.TRANSLATION:
-        filename = f"panoramic_{IS360}_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}_{BLEND}_{CROP}.png"
+        filename = f"panoramic_{IS360}_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}_{ransac_iter}_{BLEND}_{AUTO_EXP}_{CROP}.png"
     elif MOTION == MotionType.AFFINE:
         filename = f"panoramic_{S}_{scale_sigma}_{harris_sigma}_{thres_ratio}_{grid_size}_{descriptor}_{feature_match_thres}_{MOTION}_{ransac_thres}.png"
     elif MOTION == MotionType.PERSPECTIVE:

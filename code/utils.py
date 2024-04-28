@@ -124,7 +124,7 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
 
                 elif line.startswith('AUTO_EXPOSURE'):
                     line.replace(' ', '')
-                    crop = to_bool(line.split('=')[1].strip(), image_list, i)
+                    auto_exposure = to_bool(line.split('=')[1].strip(), image_list, i)
 
                 elif line.startswith('CROP'):
                     line.replace(' ', '')

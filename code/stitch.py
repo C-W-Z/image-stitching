@@ -114,7 +114,7 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
         warp_right = cv2.warpAffine(img_right, M, (new_W, new_H))
 
         # copy left to combined image
-        warp_left = np.zeros((new_H, new_W, 4), dtype=np.uint8)
+        warp_left = np.zeros((new_H, new_W, 4), dtype=np.float32)
         warp_left[:HL, :WL] = img_left
 
     else:
@@ -219,7 +219,8 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
         ox += offset[1]
         s = stitch_horizontal(s, images[i + 1], (oy, ox), blending, auto_exposure, show_seam)
 
-    s[:,:,:3] = utils.normalize(s[:,:,:3]) * 255
+    if auto_exposure:
+        s[:,:,:3] = utils.normalize(s[:,:,:3]) * 255
 
     if end_to_end:
         s = end_to_end_align(s, oy - offsets[-1][0])
