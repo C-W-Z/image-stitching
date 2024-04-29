@@ -18,7 +18,7 @@ THRES_RATIO = 0.1 # (default 0.1)
 GRID_SIZE = 20 # (default 20)
 
 # use SIFT or MSOP feature descriptor
-DESCIPTOR = MSOP # (default SIFT)
+DESCIPTOR = MSOP # (default MSOP)
 
 # threshold used in feature matching 
 # distance to the closest feature should < FEATURE_MATCH_THRES * distance to the second closest feature
@@ -33,8 +33,8 @@ RANSAC_THRES = 1 # (default 1.0)
 # the iteration number of RANSAC
 RANSAC_ITER = 5000 # (default 1000)
 
-# SEAM (seam finding) or LINEAR (linear blending)
-BLEND = SEAM # (default LINEAR)
+# SEAM (seam finding) or LINEAR (linear blending) or NONE
+BLEND = LINEAR # (default LINEAR)
 
 # auto adjust the brightness between multiple images
 AUTO_EXPOSURE = False # (default False)

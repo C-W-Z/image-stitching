@@ -47,6 +47,8 @@ def harris_detector(gray:np.ndarray[float,2], sigma:float, thresRatio:float=0.01
     localMaxR = maximum_filter(R, size=3, mode='constant', cval=0)
     R[R<localMaxR] = 0
     points = nms(R, thresRatio * np.max(R), winSize)
+    # points = np.where(R > thresRatio * np.max(R))
+    # points = np.array(points).T
     print(f"Find {len(points)} features")
     return points
 

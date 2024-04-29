@@ -33,7 +33,7 @@ RANSAC_THRES = 2 # (default 1.0)
 # the iteration number of RANSAC
 RANSAC_ITER = 5000 # (default 1000)
 
-# SEAM (seam finding) or LINEAR (linear blending)
+# SEAM (seam finding) or LINEAR (linear blending) or NONE
 BLEND = SEAM # (default LINEAR)
 
 # auto adjust the brightness between multiple images

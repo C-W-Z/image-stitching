@@ -7,8 +7,9 @@ from feature import *
 from enum import IntEnum
 
 class BlendingType(IntEnum):
-    LINEAR = 0
-    SEAM = 1
+    NONE = 0
+    LINEAR = 1
+    SEAM = 2
     def __str__(self):
         return self.name.upper()
 
@@ -175,6 +176,9 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
 
     elif blending == BlendingType.SEAM:
         combined[:, overlap_x:WL] = seam_finding(warp_left[:, overlap_x:WL], warp_right[:, overlap_x:WL], show_seam)
+
+    else:
+        combined[translated_true_overlap] = warp_right[translated_true_overlap]
 
     # the coords that inside overlap area but only the img_right has value (alpha > 127)
     right_nolap = np.where(np.logical_and(np.logical_not(left_alpha), right_alpha))

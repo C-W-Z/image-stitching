@@ -56,7 +56,7 @@ def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[floa
     harris_sigma = 0.5
     thres_ratio = 0.1
     grid_size = 20
-    descriptor = DescriptorType.SIFT
+    descriptor = DescriptorType.MSOP
     feature_match_thres = 0.8
     motion = MotionType.TRANSLATION
     ransac_thres = 1
