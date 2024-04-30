@@ -39,7 +39,7 @@ BLEND = SEAM # (default LINEAR)
 # auto adjust the brightness between multiple images
 AUTO_EXPOSURE = True # (default False)
 
-# Crop panorama to rectangle size
+# crop panorama to a rectangle
 CROP = True # (default True)
 
 # image     focal

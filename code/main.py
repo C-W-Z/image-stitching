@@ -152,7 +152,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Read images & arguments from information in <input_file> & output the panoramic image 'panorama_*parameters*.png' to <output_directory>\n")
     parser.add_argument("input_file", type=str, metavar="<input_file>", help="Input file (.txt) path")
     parser.add_argument("output_directory", type=str, metavar="<output_directory>", help="Output directory path")
-    parser.add_argument("-d", action="store_true", help="Output feature points and other debug images in <output_directory>")
+    parser.add_argument("-d", action="store_true", help="Output debug images in <output_directory>")
     args = parser.parse_args()
     utils.check_and_make_dir(args.output_directory)
     main(args.input_file, args.output_directory, args.d)
