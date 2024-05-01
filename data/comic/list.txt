@@ -15,20 +15,20 @@ HARRIS_SIGMA = 0.5 # (default 0.5)
 THRES_RATIO = 0.1 # (default 0.1)
 
 # grid size in non-maximum suppression
-GRID_SIZE = 20 # (default 20)
+GRID_SIZE = 40 # (default 20)
 
 # use SIFT or MSOP feature descriptor
 DESCIPTOR = MSOP # (default MSOP)
 
 # threshold used in feature matching 
 # distance to the closest feature should < FEATURE_MATCH_THRES * distance to the second closest feature
-FEATURE_MATCH_THRES = 0.8 # (default 0.8)
+FEATURE_MATCH_THRES = 0.7 # (default 0.8)
 
 # TRANSLATION / AFFINE / PERSPECTIVE motion
 MOTION = TRANSLATION # (default TRANSLATION)
 
 # the threshold used in RANSAC
-RANSAC_THRES = 1 # (default 1.0)
+RANSAC_THRES = 2 # (default 1.0)
 
 # the iteration number of RANSAC
 RANSAC_ITER = 5000 # (default 1000)

@@ -21,10 +21,13 @@ def main(input_file:str, output_dir:str, debug:bool=False):
     grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in imgs]
     multi_grays = [utils.to_multi_scale(g, S, scale_sigma) for g in grays]
 
-    multi_keypoints = [harris.multi_scale_harris(g, harris_sigma, thres_ratio, grid_size) for g in multi_grays]
-    if debug:
-        for i in range(N):
-            for s in range(S):
+    multi_keypoints = []
+    for i in range(N):
+        p = harris.multi_scale_harris(multi_grays[i], harris_sigma, thres_ratio, grid_size)
+        multi_keypoints.append(p)
+        for s in range(S):
+            multi_keypoints[i][s] = harris.edge_feature_filter(imgs[i], multi_keypoints[i][s] * (1<<s)) / (1<<s)
+            if debug:
                 utils.draw_keypoints(multi_grays[i][s], multi_keypoints[i][s], None, os.path.join(output_dir, f"harris_{i}_{s}"))
     print("Complete Harris Detection")
 

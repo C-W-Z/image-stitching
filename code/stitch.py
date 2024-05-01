@@ -147,17 +147,18 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
 
     # auto exposure
     if auto_exposure:
-        gray_left = cv2.cvtColor(warp_left, cv2.COLOR_BGRA2GRAY).astype(np.float32) + 1e-6
-        gray_right = cv2.cvtColor(warp_right, cv2.COLOR_BGRA2GRAY).astype(np.float32) + 1e-6
-        left_mean = np.mean(gray_left[translated_true_overlap])
-        right_mean = np.mean(gray_right[translated_true_overlap])
-        mean_exposure = (left_mean + right_mean) / 2
-        left_diff = left_mean - mean_exposure
-        right_diff = right_mean - mean_exposure
         warp_left = warp_left.astype(np.float32)
         warp_right = warp_right.astype(np.float32)
-        warp_left[:,:,:3] -= left_diff
-        warp_right[:,:,:3] -= right_diff
+        for c in range(3):
+            gray_left = warp_left[:,:,c] + 1e-6
+            gray_right = warp_right[:,:,c] + 1e-6
+            left_mean = np.mean(gray_left[translated_true_overlap])
+            right_mean = np.mean(gray_right[translated_true_overlap])
+            mean_exposure = (left_mean + right_mean) / 2
+            left_diff = left_mean - mean_exposure
+            right_diff = right_mean - mean_exposure
+            warp_left[:,:,c] -= left_diff
+            warp_right[:,:,c] -= right_diff
 
     # copy the right no overlap area
     combined = np.copy(warp_left)
@@ -196,9 +197,12 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
     # print(offsetY)
     H, W, C = panorama.shape
     dy = np.linspace(0, offsetY, W, dtype=np.float32)
-    oy = int(np.ceil(offsetY))
+    oy = int(np.ceil(np.abs(offsetY)))
     align = np.zeros((H + oy, W, C), dtype=np.float32)
-    align[oy:oy+H] = panorama
+    if offsetY > 0:
+        align[oy:oy+H] = panorama
+    else:
+        align[:H] = panorama
     for x in range(W):
         align[:,x] = shift(align[:,x], (-dy[x], 0), mode='nearest', order=1)
     return align.astype(np.uint8)
