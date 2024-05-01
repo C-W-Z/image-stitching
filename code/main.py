@@ -76,6 +76,8 @@ def main(input_file:str, output_dir:str, debug:bool=False):
         # oriens2 = []
         for s in range(S):
             matches = feature.feature_matching(desc1[s], desc2[s], feature_match_thres)
+            if (len(matches) == 0):
+                continue
             idx1, idx2 = np.asarray(matches).T
             m_point1 = point1[s][idx1] * (1 << s)
             m_point2 = point2[s][idx2] * (1 << s)
