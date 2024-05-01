@@ -19,14 +19,21 @@ class MotionType(IntEnum):
     def __str__(self):
         return self.name.upper()
 
-def subpixel_refinement(gray:np.ndarray[np.uint8, 2], keypoints:np.ndarray[int,2]) -> np.ndarray[float,2]:
+def subpixel_refinement(
+    gray:np.ndarray[np.uint8, 2],
+    keypoints:np.ndarray[int,2]
+) -> np.ndarray[float,2]:
     keypoints = keypoints.astype(np.float32)
     keypoints = keypoints.reshape(-1, 1, 2)
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     keypoints = cv2.cornerSubPix(gray, cv2.UMat(keypoints), (3, 3), (-1, -1), criteria)
     return keypoints.get().reshape(-1, 2)
 
-def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma:float=0):
+def gaussian_blur_with_spacing(
+    gray:np.ndarray[np.uint8,2],
+    spacing:int=5,
+    sigma:float=0
+):
     H, W = gray.shape
     newH = H // spacing
     newW = W // spacing
@@ -36,7 +43,11 @@ def gaussian_blur_with_spacing(gray:np.ndarray[np.uint8,2], spacing:int=5, sigma
 
     return result
 
-def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=0, centerYX:tuple[float,float]=None):
+def orientation_histogram(
+    patch:np.ndarray[np.uint8,2],
+    bins:int=36, margin:int=0,
+    centerYX:tuple[float,float]=None
+):
     H, W = patch.shape
     assert(H == W)
     patch_size = W - 2 * margin
@@ -67,7 +78,10 @@ def orientation_histogram(patch:np.ndarray[np.uint8,2], bins:int=36, margin:int=
 
     return (histogram, major_orientation, second_orientation)
 
-def msop_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]]):
+def msop_descriptor(
+    gray:np.ndarray[np.uint8, 2],
+    keypoints:list[tuple[int, int]]
+):
     descriptors = []
     validpoints = []
     orientations = []
@@ -125,7 +139,10 @@ def msop_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]
 
     return (np.array(validpoints), np.array(descriptors), np.array(orientations))
 
-def sift_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]]):
+def sift_descriptor(
+    gray:np.ndarray[np.uint8, 2],
+    keypoints:list[tuple[int, int]]
+):
     """
     With SIFT feature detection, gray should be a DoG image.
     Otherwise just use simple gray image.
@@ -190,7 +207,11 @@ def sift_descriptor(gray:np.ndarray[np.uint8, 2], keypoints:list[tuple[int, int]
 
     return np.array(validpoints), np.array(descriptors), np.array(orientations)
 
-def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarray[np.uint8,3], threshold:float) -> list[tuple[int,int]]:
+def feature_matching(
+    descriptors1:np.ndarray[np.uint8,3],
+    descriptors2:np.ndarray[np.uint8,3],
+    threshold:float
+) -> list[tuple[int,int]]:
     # use kd-tree to find two nearest matching points for each decriptors
     tree = cKDTree(descriptors2)
     distances, indices = tree.query(descriptors1, k=2)
@@ -204,49 +225,3 @@ def feature_matching(descriptors1:np.ndarray[np.uint8,3], descriptors2:np.ndarra
             matches.append((i, indices[i, 0]))
     print("Find Match Features:", len(matches))
     return matches
-
-if __name__ == '__main__':
-    imgs, focals, *_ = utils.read_images("data\parrington\list.txt")
-    # H, W, _ = imgs[0].shape
-    imgs = imgs[0:2]
-    focals = focals[0:2]
-    N = len(imgs)
-    projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(len(imgs))]
-    # projs = [cv2.cvtColor(imgs[i], cv2.COLOR_BGR2BGRA) for i in range(len(imgs))]
-    grays = [cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) for img in projs]
-    keypoints = [harris.harris_detector(gray, 0.5, 0.05, 15) for gray in grays]
-    print("Complete Harris Detection")
-
-    descs = []
-    points = []
-    orientations = []
-    for i in range(len(projs)):
-        subpixel_keypoints = subpixel_refinement(grays[i], keypoints[i])
-        p, d, o = msop_descriptor(grays[i], subpixel_keypoints)
-        points.append(p)
-        descs.append(d)
-        orientations.append(o)
-        print("Complete Feature Description:", len(p))
-        utils.draw_keypoints(projs[i], keypoints[i], None, f"test__{i}")
-
-    matches = feature_matching(descs[0], descs[1], 0.8)
-
-    match_idx1 = np.array([i for i, _ in matches], dtype=np.int32)
-    match_idx2 = np.array([j for _, j in matches], dtype=np.int32)
-    matched_keypoints1 = points[0][match_idx1]
-    orientations1 = orientations[0][match_idx1]
-    matched_keypoints2 = points[1][match_idx2]
-    orientations2 = orientations[1][match_idx2]
-    utils.draw_keypoints(projs[0], matched_keypoints1, orientations1, "testmatch0_.jpg")
-    utils.draw_keypoints(projs[1], matched_keypoints2, orientations2, "testmatch1_.jpg")
-
-    M, *_ = stitch.ransac_homography(matched_keypoints1, matched_keypoints2, 1, 5000)
-    # M, _ = cv2.findHomography(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], cv2.RANSAC, ransacReprojThreshold=0.01, confidence=0.99)
-    # M, _ = cv2.estimateAffinePartial2D(matched_keypoints1[:, ::-1], matched_keypoints2[:, ::-1], method=cv2.RANSAC, ransacReprojThreshold=1 ,confidence=0.999)
-    print(M)
-    # M = [[1, 0, 248.9],
-    #      [0, 1, 4.17],
-    #      [0, 0, 1]]
-    # M = np.array(M)
-    result = stitch.stitch_homography(projs[0], projs[1], M)
-    cv2.imwrite("test.png", result)

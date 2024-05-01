@@ -46,7 +46,9 @@ def to_BlendingType(value:str, file:str, line:int):
     except KeyError:
         perror(f"Error in {file}, line {line+1}: {value} is not a valid BlendingType value")
 
-def read_images(image_list:str) -> tuple[list[np.ndarray[np.uint8,3]], list[float]]:
+def read_images(
+    image_list:str
+) -> tuple[list[np.ndarray[np.uint8,3]], list[float]]:
 
     images = []
     focals = []
@@ -177,7 +179,10 @@ def crop_rectangle(image:np.ndarray[np.uint8,3]):
 
     return image[top_row:H-bottom_row]
 
-def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndarray[np.uint8, 3]:
+def cylindrical_projection(
+    image:np.ndarray[np.uint8,3],
+    focal:float
+) -> np.ndarray[np.uint8, 3]:
     H, W, *_ = image.shape
     proj = np.zeros((H, W, 4), dtype=np.uint8) # add alpha channel
     y_coords, x_coords = np.ogrid[:H, :W]
@@ -193,7 +198,11 @@ def cylindrical_projection(image:np.ndarray[np.uint8,3], focal:float) -> np.ndar
     proj[Y, X, 3] = 255 # alpha = 255
     return crop_horizontal(proj)
 
-def rotate_image(image:np.ndarray[np.uint8,3], angle:float, centerXY:tuple[float,float]=None):
+def rotate_image(
+    image:np.ndarray[np.uint8,3],
+    angle:float,
+    centerXY:tuple[float,float]=None
+):
     H, W, *_ = image.shape
     if centerXY == None:
         centerXY = (W / 2, H / 2)
@@ -204,7 +213,13 @@ def normalize(image:np.ndarray[np.uint8,3]):
     return cv2.normalize(image, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
     # return (image - image.mean()) / image.std()
 
-def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]], angles:list[float] | None, filename:str=None, arrow_length=10):
+def draw_keypoints(
+    image:np.ndarray[np.uint8,3],
+    keypoints:list[tuple[int,int]],
+    angles:list[float] | None,
+    filename:str=None,
+    arrow_length=10
+):
     assert(angles is None or len(keypoints) == len(angles))
     image = np.copy(image)
     if len(image.shape) == 2:
@@ -224,7 +239,15 @@ def draw_keypoints(image:np.ndarray[np.uint8,3], keypoints:list[tuple[int,int]],
 
     return image
 
-def draw_matches(img_left:np.ndarray[np.uint8,3], point_left:list[tuple[int,int]], img_right:np.ndarray[np.uint8,3], point_right:list[tuple[int,int]], inliers:list[int]=[], outliers:list[int]=[], filename:str=None):
+def draw_matches(
+    img_left:np.ndarray[np.uint8,3],
+    point_left:list[tuple[int,int]],
+    img_right:np.ndarray[np.uint8,3],
+    point_right:list[tuple[int,int]],
+    inliers:list[int]=[],
+    outliers:list[int]=[],
+    filename:str=None
+):
     HL, WL, CL = img_left.shape
     HR, WR, CR = img_right.shape
     assert(CL == CR and CR == 4)
@@ -253,7 +276,11 @@ def draw_matches(img_left:np.ndarray[np.uint8,3], point_left:list[tuple[int,int]
 
     return image
 
-def gaussian_weights(shape, centerYX, sigma):
+def gaussian_weights(
+    shape:tuple[int,int],
+    centerYX:tuple[int,int],
+    sigma:float
+):
     """
     Generate Gaussian weights centered at centerYX = (y, x) with given sigma.
     """
@@ -264,7 +291,11 @@ def gaussian_weights(shape, centerYX, sigma):
 
     return np.exp(-((x_indices - centerYX[0])**2 + (y_indices - centerYX[1])**2) / (2 * sigma**2))
 
-def to_multi_scale(gray:np.ndarray[np.uint8,2], nums:int=2, sigma:float=1):
+def to_multi_scale(
+    gray:np.ndarray[np.uint8,2],
+    nums:int=2,
+    sigma:float=1
+):
     grays = [gray]
     ksize = (5, 5)
     for _ in range(1, nums):

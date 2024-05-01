@@ -13,7 +13,11 @@ class BlendingType(IntEnum):
     def __str__(self):
         return self.name.upper()
 
-def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:int=1000):
+def ransac_translation(
+    offsets:np.ndarray[float,2],
+    threshold:float,
+    iterations:int=1000
+):
     N = len(offsets)
     best_offset = None
     max_inlier_count = -1
@@ -49,7 +53,11 @@ def ransac_translation(offsets:np.ndarray[float,2], threshold:float, iterations:
 
     return np.array([totalY / count, totalX / count]), inliers, outliers
 
-def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], show_seam:bool=False):
+def seam_finding(
+    img_left:np.ndarray[np.uint8,3],
+    img_right:np.ndarray[np.uint8,3],
+    show_seam:bool=False
+):
     assert(img_left.shape == img_right.shape)
     overlap_w = img_left.shape[1]
     gray_left = cv2.cvtColor(img_left, cv2.COLOR_BGRA2GRAY)
@@ -91,7 +99,14 @@ def seam_finding(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,
 
     return result
 
-def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.uint8,3], offset:np.ndarray[float,2], blending:BlendingType, auto_exposure:bool=False, show_seam:bool=False):
+def stitch_horizontal(
+    img_left:np.ndarray[np.uint8,3],
+    img_right:np.ndarray[np.uint8,3],
+    offset:np.ndarray[float,2],
+    blending:BlendingType,
+    auto_exposure:bool=False,
+    show_seam:bool=False
+):
     """
     Parameters
     img_left: the image should be stitch on the left (4 channels BGRA)
@@ -193,7 +208,10 @@ def stitch_horizontal(img_left:np.ndarray[np.uint8,3], img_right:np.ndarray[np.u
 
     return combined
 
-def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
+def end_to_end_align(
+    panorama:np.ndarray[np.uint8,3],
+    offsetY:float
+):
     # print(offsetY)
     H, W, C = panorama.shape
     dy = np.linspace(0, offsetY, W, dtype=np.float32)
@@ -207,7 +225,14 @@ def end_to_end_align(panorama:np.ndarray[np.uint8,3], offsetY:float):
         align[:,x] = shift(align[:,x], (-dy[x], 0), mode='nearest', order=1)
     return align.astype(np.uint8)
 
-def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[float,2], blending:BlendingType, end_to_end:bool=False, auto_exposure:bool=False, show_seam:bool=False):
+def stitch_all_horizontal(
+    images:np.ndarray[np.uint8,3],
+    offsets:np.ndarray[float,2],
+    blending:BlendingType,
+    end_to_end:bool=False,
+    auto_exposure:bool=False,
+    show_seam:bool=False
+):
     N = len(images)
 
     if N == len(offsets):
@@ -236,7 +261,12 @@ def stitch_all_horizontal(images:np.ndarray[np.uint8,3], offsets:np.ndarray[floa
     s = utils.crop_vertical(s)
     return s.astype(np.uint8)
 
-def ransac_affine(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], threshold:float, iterations:int=1000):
+def ransac_affine(
+    srcpoints:np.ndarray[float,2],
+    dstpoints:np.ndarray[float,2],
+    threshold:float,
+    iterations:int=1000
+):
     assert(srcpoints.shape == dstpoints.shape)
     N = len(srcpoints)
     assert(N >= 3)
@@ -276,7 +306,12 @@ def ransac_affine(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], 
         best_H = H
     return best_H
 
-def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,2], threshold:float, iterations:int=1000):
+def ransac_homography(
+    srcpoints:np.ndarray[float,2],
+    dstpoints:np.ndarray[float,2],
+    threshold:float,
+    iterations:int=1000
+):
     assert(srcpoints.shape == dstpoints.shape)
     N = len(srcpoints)
     assert(N >= 4)
@@ -318,7 +353,11 @@ def ransac_homography(srcpoints:np.ndarray[float,2], dstpoints:np.ndarray[float,
         best_H = H
     return best_H, best_inliers, best_outliers
 
-def estimate_transformed_corners(H:int, W:int, M:np.ndarray[float,2]):
+def estimate_transformed_corners(
+    H:int,
+    W:int,
+    M:np.ndarray[float,2]
+):
     corners = np.array([[0, 0, 1], [0, H-1, 1], [W-1, 0, 1], [W-1, H-1, 1]], dtype=np.float32)
     transformed_corners = (M @ corners.T)[:2].T
     min_x = np.min(transformed_corners[:, 0])
@@ -327,7 +366,11 @@ def estimate_transformed_corners(H:int, W:int, M:np.ndarray[float,2]):
     max_y = np.max(transformed_corners[:, 1])
     return min_x, max_x, min_y, max_y
 
-def stitch_homography(src:np.ndarray[np.uint8,3], dst:np.ndarray[np.uint8,3], M:np.ndarray[float,2]):
+def stitch_homography(
+    src:np.ndarray[np.uint8,3],
+    dst:np.ndarray[np.uint8,3],
+    M:np.ndarray[float,2]
+):
     HS, WS, CS = src.shape
     HD, WD, CD = dst.shape
     assert(CS == CD and CS == 4)
@@ -366,7 +409,10 @@ def stitch_homography(src:np.ndarray[np.uint8,3], dst:np.ndarray[np.uint8,3], M:
     result[translated_alpha] = dst[alpha]
     return result
 
-def stitch_all_homography(images:np.ndarray[np.uint8,3], Ms:list[np.ndarray[float,3]]):
+def stitch_all_homography(
+    images:np.ndarray[np.uint8,3],
+    Ms:list[np.ndarray[float,3]]
+):
     N = len(images)
     mid = N // 2
 
@@ -398,19 +444,3 @@ def stitch_all_homography(images:np.ndarray[np.uint8,3], Ms:list[np.ndarray[floa
 
     s = utils.crop_transparency(s)
     return s
-
-if __name__ == '__main__':
-    imgs, focals, *_ = utils.read_images("data\parrington\list.txt")
-
-    N = len(imgs)
-    H, W, _ = imgs[0].shape
-
-    projs = [utils.cylindrical_projection(imgs[i], focals[i]) for i in range(N)]
-
-    offsets = [(4.818640873349946, 247.104335741065), (3.961816606067476, 241.08839616321382), (4.498912266322544, 251.8507334391276), (4.486582040786743, 241.54479026794434), (4.276208567064862, 249.0492944052053), (4.1, 240.975), (4.076923076923077, 244.28205128205127), (4.2105263157894735, 245.0), (4.200587879527699, 239.85669361461294), (4.179313312877309, 252.2882905439897), (4.319418334960938, 241.9544413248698), (4.1521739130434785, 244.52173913043478), (4.61705849387429, 250.04984560879794), (4.203607177734375, 240.68699951171874), (5.067944613370028, 244.1397372159091), (4.8, 247.55), (4.676370143890381, 239.73403453826904), (3.831537882486979, 244.12783014206659)]
-    offsets = np.array(offsets)
-
-    s = stitch_all_horizontal(projs, offsets, BlendingType.SEAM, True)
-    # s = cv2.imread("test_seam_red_crop.png", cv2.IMREAD_UNCHANGED)
-    s = utils.crop_rectangle(s)
-    cv2.imwrite("test_seam_red_crop.png", s)

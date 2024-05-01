@@ -3,7 +3,10 @@ import cv2
 from scipy.ndimage import maximum_filter
 import utils
 
-def edge_feature_filter(img:np.ndarray[np.uint8, 3], points:list[tuple[float,float]]):
+def edge_feature_filter(
+    img:np.ndarray[np.uint8, 3],
+    points:list[tuple[float,float]]
+):
     H, W, *_ = img.shape
     new_points = []
     for y, x in points:
@@ -18,7 +21,11 @@ def edge_feature_filter(img:np.ndarray[np.uint8, 3], points:list[tuple[float,flo
     return np.array(new_points)
 
 # non-maximum suppression
-def nms(R:np.ndarray[float,2], threshold:float, winSize:int):
+def nms(
+    R:np.ndarray[float,2],
+    threshold:float,
+    winSize:int
+):
     H, W = R.shape
     feature_points = np.empty((0, 2))
 
@@ -43,7 +50,12 @@ def nms(R:np.ndarray[float,2], threshold:float, winSize:int):
 
     return feature_points
 
-def harris_detector(gray:np.ndarray[float,2], sigma:float, thresRatio:float=0.01, winSize:int=15):
+def harris_detector(
+    gray:np.ndarray[float,2],
+    sigma:float,
+    thresRatio:float=0.01,
+    winSize:int=15
+):
     k = 0.04
     ksize = (5,5)
 
@@ -68,7 +80,13 @@ def harris_detector(gray:np.ndarray[float,2], sigma:float, thresRatio:float=0.01
     print(f"Find {len(points)} features")
     return points
 
-def multi_scale_harris(grays:np.ndarray[float,2], sigma:float, thres_ratio:float=0.01, grid_size:int=20, save:bool=False):
+def multi_scale_harris(
+    grays:np.ndarray[float,2],
+    sigma:float,
+    thres_ratio:float=0.01,
+    grid_size:int=20,
+    save:bool=False
+):
     scales = []
 
     for i, gray in enumerate(grays):
@@ -79,13 +97,3 @@ def multi_scale_harris(grays:np.ndarray[float,2], sigma:float, thres_ratio:float
         grid_size //= 2
 
     return scales
-
-if __name__ == '__main__':
-    images, focals, *_ = utils.read_images("data\grail\list.txt")
-    img1 = images[0]
-    grayImg = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-
-    sigma_scale = 1
-
-    grays = utils.to_multi_scale(grayImg, 2, 1)
-    keypoints = multi_scale_harris(grays, 0.5, thres_ratio=0.01, grid_size=20, save=True)

@@ -1,7 +1,9 @@
 import numpy as np
 import numpy.linalg as la
 
-def normalize_points(points:np.ndarray[float,2]) -> tuple[np.ndarray[float,2],np.ndarray[float],float]:
+def normalize_points(
+    points:np.ndarray[float,2]
+) -> tuple[np.ndarray[float,2],np.ndarray[float],float]:
     mean_point = np.mean(points, axis=0)
     centered_points = points - mean_point
     avg_distance = np.mean(la.norm(centered_points, axis=1))
@@ -22,10 +24,17 @@ def normalize_points(points:np.ndarray[float,2]) -> tuple[np.ndarray[float,2],np
 
     return points, affine
 
-def denormalize_H(H:np.ndarray[float,2], affine_src:np.ndarray[float,2], affine_dst:np.ndarray[float,2]) -> np.ndarray[float,2]:
+def denormalize_H(
+    H:np.ndarray[float,2],
+    affine_src:np.ndarray[float,2],
+    affine_dst:np.ndarray[float,2]
+) -> np.ndarray[float,2]:
     return la.inv(affine_dst) @ H @ affine_src
 
-def dlt(srcpointsXY:np.ndarray[float,2], dstpointsXY:np.ndarray[float,2]):
+def dlt(
+    srcpointsXY:np.ndarray[float,2],
+    dstpointsXY:np.ndarray[float,2]
+):
     assert(srcpointsXY.shape == dstpointsXY.shape)
 
     normalized_src, affine_src = normalize_points(srcpointsXY)
