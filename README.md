@@ -131,7 +131,7 @@ BLEND|`NONE` `SEAM` `LINEAR`|`LINEAR`|no blending, seam finding, or linear blend
 AUTO_EXPOSURE|`True` `False`|`False`|auto adjust the brightness between multiple images or not
 CROP|`True` `False`|`False`|crop panorama to a rectangle or not
 
-Last, we need to write the image file names and the focal length as follow:
+Last, we need to write the image file names and the focal length as follow.
 
 ```txt
 # filenames      focal lengths
@@ -139,6 +139,9 @@ your-image-1.jpg XXX
 your-image-2.jpg XXX
 your-image-3.jpg XXX
 ```
+
+Note that the order of the filenames should be clockwise, which means the first image should be the left most image and the last image should be the right most one. And the overlapping region of each two images should preferably not exceed half.
+
 
 The file names should not contain any spaces, and this .txt file must be in the same folder as the images you write in it.
 
