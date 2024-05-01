@@ -35,12 +35,12 @@ For example:
 
 ```shell
 $ cd code
-$ python main.py ../data/grail/list.txt ../data/grail
+$ python main.py ../data/grail/origin/list.txt ../data/grail
 ```
 
 ## Input File
 
-For example, this is the file [data/grail/list.txt](data/grail/list.txt)
+For example, this is the file [data/grail/origin/list.txt](data/grail/list.txt)
 
 ```txt
 # whether this photo set cover 360 degree

@@ -1,0 +1,72 @@
+# whether this photo set cover 360 degree
+IS360 = True # (default False)
+
+# how many scales used (for multi-scale)
+SCALES = 3 # (default 1)
+
+# sigma for Guassian blur when multi-scaling the photos
+SCALE_SIGMA = 1 # (default 1.0)
+
+# sigma for Guassian blur in harris dectector
+HARRIS_SIGMA = 0.5 # (default 0.5)
+
+# threshold ratio used in harris dectector
+# threshold = THRES_RATIO * max corner response
+THRES_RATIO = 0.1 # (default 0.1)
+
+# grid size in non-maximum suppression
+GRID_SIZE = 30 # (default 20)
+
+# use SIFT or MSOP feature descriptor
+DESCIPTOR = MSOP # (default MSOP)
+
+# threshold used in feature matching 
+# distance to the closest feature should < FEATURE_MATCH_THRES * distance to the second closest feature
+FEATURE_MATCH_THRES = 0.7 # (default 0.8)
+
+# TRANSLATION / AFFINE / PERSPECTIVE motion
+MOTION = TRANSLATION # (default TRANSLATION)
+
+# the threshold used in RANSAC
+RANSAC_THRES = 2 # (default 1.0)
+
+# the iteration number of RANSAC
+RANSAC_ITER = 5000 # (default 1000)
+
+# SEAM (seam finding) or LINEAR (linear blending) or NONE
+BLEND = LINEAR # (default LINEAR)
+
+# auto adjust the brightness between multiple images
+AUTO_EXPOSURE = False # (default False)
+
+# Crop panorama to rectangle size
+CROP = False # (default True)
+
+# image             focal
+20240430_181048.JPG 1175.32
+#20240430_181051.JPG 1183.43
+20240430_181054.JPG 1184.49
+20240430_181057.JPG 1195.74
+20240430_181100.JPG 1207.49
+#20240430_181103.JPG 
+20240430_181106.JPG 1256.1
+20240430_181110.JPG 990.629
+20240430_181113.JPG 1021.48
+20240430_181116.JPG 1043.41
+20240430_181119.JPG 1043.7
+20240430_181122.JPG 1036.01
+20240430_181126.JPG 1055.65
+
+20240430_181136.JPG 1057.79
+
+20240430_181143.JPG 1063.48
+20240430_181149.JPG 1069.92
+20240430_181153.JPG 1061.67
+20240430_181157.JPG 1066.31
+#20240430_181200.JPG 1083.5
+20240430_181203.JPG 1100.65
+#20240430_181207.JPG 1119.78
+#20240430_181209.JPG 1133.79
+#20240430_181212.JPG 1148.21
+20240430_181215.JPG 1152.39
+
