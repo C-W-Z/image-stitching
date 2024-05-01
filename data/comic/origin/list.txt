@@ -34,13 +34,13 @@ RANSAC_THRES = 2 # (default 1.0)
 RANSAC_ITER = 5000 # (default 1000)
 
 # SEAM (seam finding) or LINEAR (linear blending) or NONE
-BLEND = LINEAR # (default LINEAR)
+BLEND = SEAM # (default LINEAR)
 
 # auto adjust the brightness between multiple images
 AUTO_EXPOSURE = False # (default False)
 
 # Crop panorama to rectangle size
-CROP = False # (default True)
+CROP = True # (default True)
 
 # image             focal
 20240430_181048.JPG 1175.32

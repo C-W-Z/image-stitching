@@ -40,7 +40,7 @@ BLEND = LINEAR # (default LINEAR)
 AUTO_EXPOSURE = False # (default False)
 
 # Crop panorama to rectangle size
-CROP = False # (default True)
+CROP = True # (default True)
 
 # image    focal
 prtn08.jpg 703.794
