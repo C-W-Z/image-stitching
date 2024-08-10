@@ -126,7 +126,7 @@ DESCIPTOR|`MSOP` `SIFT`|`MSOP`|use SIFT or MSOP feature descriptor
 FEATURE_MATCH_THRES|float 0~1|0.8|threshold used in feature matching, `distance to the closest feature should < FEATURE_MATCH_THRES * distance to the second closest feature`
 MOTION|`TRANSLATION` `AFFINE` `PERSPECTIVE`|`TRANSLATION`|the motion model used for matching and stitching photos
 RANSAC_THRES|float, >=0|1.0|the threshold used in RANSAC, determine a motion is inlier or outlier
-RANSAC_ITER|int, >=1|the iteration number of RANSAC
+RANSAC_ITER|int, >=1|1000|the iteration number of RANSAC
 BLEND|`NONE` `SEAM` `LINEAR`|`LINEAR`|no blending, seam finding, or linear blending when stitching photos|
 AUTO_EXPOSURE|`True` `False`|`False`|auto adjust the brightness between multiple images or not
 CROP|`True` `False`|`False`|crop panorama to a rectangle or not
@@ -140,7 +140,7 @@ your-image-2.jpg XXX
 your-image-3.jpg XXX
 ```
 
-Note that the order of the filenames should be clockwise, which means the first image should be the left most image and the last image should be the right most one. And the overlapping region of each two images should preferably not exceed half.
+Note that the order of the filenames should be <mark>from left to right (clockwise)</mark>, which means the first image should be the left most image and the last image should be the right most one. And the overlapping region of each two images should preferably not exceed half.
 
 
 The file names should not contain any spaces, and this .txt file must be in the same folder as the images you write in it.
